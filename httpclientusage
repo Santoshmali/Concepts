@@ -44,6 +44,31 @@ public static class HttpClientFactory
         var json = await GetDataAsync(url, cancellationToken);
         return JsonSerializer.Deserialize<T>(json);
     }
+
+public static async Task<string> PostDataAsync(string url, IDictionary<string, string> data, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var content = new FormUrlEncodedContent(data);
+            var response = await Instance.PostAsync(url, content, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ApplicationException("Error posting data.", ex);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new TaskCanceledException("The request was canceled.");
+        }
+    }
+
+    public static async Task<T> PostJsonAsync<T>(string url, IDictionary<string, string> data, CancellationToken cancellationToken = default)
+    {
+        var json = await PostDataAsync(url, data, cancellationToken);
+        return JsonSerializer.Deserialize<T>(json);
+    }
 }
 
 
