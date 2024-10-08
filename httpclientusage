@@ -1,0 +1,67 @@
+using System;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+public static class HttpClientFactory
+{
+    private static readonly HttpClient _httpClient;
+
+    static HttpClientFactory()
+    {
+        _httpClient = new HttpClient
+        {
+            BaseAddress = new Uri("https://api.example.com/"), // Set your API base address here
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+    }
+
+    public static HttpClient Instance => _httpClient;
+
+    public static async Task<string> GetDataAsync(string url, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await Instance.GetAsync(url, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // Handle specific HTTP request errors
+            throw new ApplicationException("Error fetching data.", ex);
+        }
+        catch (OperationCanceledException)
+        {
+            // Handle cancellation
+            throw new TaskCanceledException("The request was canceled.");
+        }
+    }
+
+    public static async Task<T> GetJsonAsync<T>(string url, CancellationToken cancellationToken = default)
+    {
+        var json = await GetDataAsync(url, cancellationToken);
+        return JsonSerializer.Deserialize<T>(json);
+    }
+}
+
+
+public async Task SomeMethodAsync()
+{
+    var cancellationTokenSource = new CancellationTokenSource();
+
+    try
+    {
+        var result = await HttpClientFactory.GetJsonAsync<MyDataType>("endpoint", cancellationTokenSource.Token);
+        // Process result...
+    }
+    catch (ApplicationException ex)
+    {
+        // Log or notify user about the error
+    }
+    catch (TaskCanceledException)
+    {
+        // Handle the cancellation
+    }
+}
