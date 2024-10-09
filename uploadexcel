@@ -1,0 +1,109 @@
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
+using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace YourNamespace.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ExcelUploadController : ControllerBase
+    {
+        private readonly string _masterDataPath = "path/to/your/masterdata.json";
+
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadExcelFile()
+        {
+            var file = Request.Form.Files[0];
+
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest("No file uploaded.");
+            }
+
+            // Load master data from JSON file
+            var masterData = LoadMasterData(_masterDataPath);
+            var masterDataKeys = masterData.Select(m => m.devKey).ToHashSet();
+
+            var results = new List<TranslationResult>();
+
+            using (var stream = new MemoryStream())
+            {
+                await file.CopyToAsync(stream);
+                stream.Position = 0;
+
+                using (var document = SpreadsheetDocument.Open(stream, false))
+                {
+                    var worksheetPart = document.WorkbookPart.WorksheetParts.First();
+                    var rows = worksheetPart.Worksheet.Descendants<Row>().Skip(1); // Skip header row
+
+                    foreach (var row in rows)
+                    {
+                        var cells = row.Descendants<Cell>().ToList();
+                        var devKey = GetCellValue(document, cells[0]);
+                        var englishTranslation = GetCellValue(document, cells[1]);
+                        var languageTranslation = GetCellValue(document, cells[2]);
+
+                        // Validate devKey against master data
+                        if (masterDataKeys.Contains(devKey))
+                        {
+                            // Check if English Translation matches
+                            var masterEntry = masterData.First(m => m.devKey == devKey);
+                            if (masterEntry.EnglishTranslation != englishTranslation)
+                            {
+                                return BadRequest($"English Translation does not match for devKey: {devKey}");
+                            }
+
+                            // Add to results
+                            results.Add(new TranslationResult
+                            {
+                                devKey = devKey,
+                                EnglishTranslation = englishTranslation,
+                                LanguageTranslation = languageTranslation
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Generate JSON response
+            var jsonResponse = JsonConvert.SerializeObject(results);
+            return Ok(jsonResponse);
+        }
+
+        private List<MasterData> LoadMasterData(string path)
+        {
+            var json = System.IO.File.ReadAllText(path);
+            return JsonConvert.DeserializeObject<List<MasterData>>(json);
+        }
+
+        private string GetCellValue(SpreadsheetDocument document, Cell cell)
+        {
+            if (cell.DataType == null || cell.DataType.Value != CellValues.SharedString)
+            {
+                return cell.InnerText; // Return the cell's value
+            }
+
+            var sharedStringTablePart = document.WorkbookPart.SharedStringTablePart;
+            var sharedStringTable = sharedStringTablePart.SharedStringTable;
+            return sharedStringTable.ElementAt(int.Parse(cell.InnerText)).InnerText;
+        }
+    }
+
+    public class MasterData
+    {
+        public string devKey { get; set; }
+        public string EnglishTranslation { get; set; }
+    }
+
+    public class TranslationResult
+    {
+        public string devKey { get; set; }
+        public string EnglishTranslation { get; set; }
+        public string LanguageTranslation { get; set; }
+    }
+}
