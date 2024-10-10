@@ -1,0 +1,40 @@
+using System.Collections.Generic;
+using System.Linq;
+
+public class DataModelSynchronizer
+{
+    public List<DataModel> SynchronizeLists(List<DataModel> masterList, List<DataModel> localeList)
+    {
+        // Create a set of names from the master list for quick lookup
+        var masterNames = new HashSet<string>(masterList.Select(m => m.Name));
+
+        // Prepare a new list to hold the synchronized data
+        var newDataModels = new List<DataModel>();
+
+        // Add new names from the master list to the new data models list
+        foreach (var masterItem in masterList)
+        {
+            if (!localeList.Any(localeItem => localeItem.Name == masterItem.Name))
+            {
+                newDataModels.Add(new DataModel
+                {
+                    Name = masterItem.Name,
+                    Age = masterItem.Age // You may choose to set a default age or a specific value
+                });
+            }
+        }
+
+        // Remove names from the locale list that are not in the master list
+        foreach (var localeItem in localeList)
+        {
+            if (!masterNames.Contains(localeItem.Name))
+            {
+                // Optional: If you want to remove it from the locale list, you can do that here
+                // localeList.Remove(localeItem);
+            }
+        }
+
+        // Return the new synchronized list
+        return newDataModels;
+    }
+}
