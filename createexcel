@@ -1,0 +1,29 @@
+using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+[ApiController]
+[Route("[controller]")]
+public class ExcelController : ControllerBase
+{
+    private readonly ExcelService _excelService;
+
+    public ExcelController()
+    {
+        _excelService = new ExcelService();
+    }
+
+    [HttpGet("download")]
+    public async Task<IActionResult> DownloadExcel()
+    {
+        // Replace this with actual JSON file reading and deserialization
+        var jsonData = "[{\"Name\":\"John Doe\", \"Age\":30}, {\"Name\":\"Jane Smith\", \"Age\":25}]";
+        var data = JsonSerializer.Deserialize<List<DataModel>>(jsonData);
+
+        var excelStream = await _excelService.GenerateExcelAsync(data);
+
+        return File(excelStream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Data.xlsx");
+    }
+}
