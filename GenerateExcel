@@ -1,0 +1,58 @@
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+
+public class ExcelService
+{
+    public async Task<MemoryStream> GenerateExcelAsync(List<DataModel> data)
+    {
+        var memoryStream = new MemoryStream();
+
+        using (var spreadsheetDocument = SpreadsheetDocument.Create(memoryStream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = spreadsheetDocument.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            worksheetPart.Worksheet = new Worksheet(new SheetData());
+
+            var sheets = spreadsheetDocument.WorkbookPart.Workbook.AppendChild(new Sheets());
+            var sheet = new Sheet()
+            {
+                Id = spreadsheetDocument.WorkbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Data"
+            };
+            sheets.Append(sheet);
+
+            var sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
+
+            // Add headers
+            var headerRow = new Row();
+            headerRow.Append(
+                new Cell() { CellValue = new CellValue("Name"), DataType = CellValues.String },
+                new Cell() { CellValue = new CellValue("Age"), DataType = CellValues.String }
+            );
+            sheetData.Append(headerRow);
+
+            // Add data rows
+            foreach (var item in data)
+            {
+                var dataRow = new Row();
+                dataRow.Append(
+                    new Cell() { CellValue = new CellValue(item.Name), DataType = CellValues.String },
+                    new Cell() { CellValue = new CellValue(item.Age.ToString()), DataType = CellValues.Number }
+                );
+                sheetData.Append(dataRow);
+            }
+
+            workbookPart.Workbook.Save();
+        }
+
+        memoryStream.Position = 0;
+        return memoryStream;
+    }
+}
