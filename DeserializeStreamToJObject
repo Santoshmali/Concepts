@@ -1,0 +1,8 @@
+static JObject DeserializeStreamToJObject(Stream stream)
+    {
+        using (var reader = new StreamReader(stream))
+        using (var jsonReader = new JsonTextReader(reader))
+        {
+            return JObject.Load(jsonReader);
+        }
+    }
