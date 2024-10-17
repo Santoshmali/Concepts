@@ -1,0 +1,48 @@
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        string jsonData = @"{
+            'mykey1': { 'kk': 'valuee' },
+            'myk': { 'kk': { 'kk1111': 'value21' } },
+            'tt': 'v1'
+        }";
+
+        var result = ConvertJsonToDotSeparated(jsonData);
+        
+        foreach (var kvp in result)
+        {
+            Console.WriteLine($"{kvp.Key}: {kvp.Value}");
+        }
+    }
+
+    static Dictionary<string, string> ConvertJsonToDotSeparated(string json)
+    {
+        var result = new Dictionary<string, string>();
+        var jsonObject = JObject.Parse(json);
+        FlattenJson(jsonObject, result, null);
+        return result;
+    }
+
+    static void FlattenJson(JObject jsonObject, Dictionary<string, string> result, string parentKey)
+    {
+        foreach (var property in jsonObject.Properties())
+        {
+            string newKey = string.IsNullOrEmpty(parentKey) ? property.Name : $"{parentKey}.{property.Name}";
+
+            if (property.Value is JObject nestedObject)
+            {
+                FlattenJson(nestedObject, result, newKey);
+            }
+            else if (property.Value is JValue value)
+            {
+                result[newKey] = value.ToString();
+            }
+        }
+    }
+}
