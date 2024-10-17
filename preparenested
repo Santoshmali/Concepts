@@ -1,0 +1,53 @@
+using System;
+using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
+
+class Program
+{
+    static void Main()
+    {
+        var keyValuePairs = new Dictionary<string, string>
+        {
+            { "dev.one", "val1" },
+            { "dev.two", "val2" },
+            { "prod", "val3" }
+        };
+
+        JObject json = new JObject();
+
+        foreach (var kvp in keyValuePairs)
+        {
+            AddToJson(json, kvp.Key, kvp.Value);
+        }
+
+        Console.WriteLine(json.ToString());
+    }
+
+    static void AddToJson(JObject jsonObject, string key, string value)
+    {
+        var keys = key.Split('.');
+        JObject currentObject = jsonObject;
+
+        for (int i = 0; i < keys.Length; i++)
+        {
+            var currentKey = keys[i];
+
+            // If it's the last key, assign the value
+            if (i == keys.Length - 1)
+            {
+                currentObject[currentKey] = value;
+            }
+            else
+            {
+                // Create nested JObject if it doesn't exist
+                if (currentObject[currentKey] == null)
+                {
+                    currentObject[currentKey] = new JObject();
+                }
+
+                // Move to the next level
+                currentObject = (JObject)currentObject[currentKey];
+            }
+        }
+    }
+}
