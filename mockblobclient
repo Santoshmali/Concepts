@@ -1,0 +1,35 @@
+public class BlobClientTests
+{
+    public async Task MockBlobClientDownloadAsync()
+    {
+        // Arrange
+        var mockBlobClient = Substitute.For<BlobClient>();
+        
+        // Create the data to be returned in the MemoryStream
+        var data = "Hello, Blob!";
+        var memoryStream = new MemoryStream();
+        var writer = new StreamWriter(memoryStream);
+        await writer.WriteAsync(data);
+        await writer.FlushAsync();
+        memoryStream.Position = 0; // Reset the stream position to the beginning
+
+        // Mock the DownloadAsync method
+        mockBlobClient.DownloadAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Response.FromValue(new BlobDownloadInfo
+            {
+                Content = memoryStream,
+                ContentLength = memoryStream.Length
+            }, null))); // Replace `null` with any required response headers if needed
+
+        // Act
+        var response = await mockBlobClient.DownloadAsync();
+
+        // Read from the returned MemoryStream
+        using (var resultStream = response.Value.Content)
+        using (var reader = new StreamReader(resultStream))
+        {
+            var resultData = await reader.ReadToEndAsync();
+            Console.WriteLine(resultData); // Output: Hello, Blob!
+        }
+    }
+}
