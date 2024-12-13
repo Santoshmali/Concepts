@@ -1,0 +1,15 @@
+let specificEndpoint = "/your/specific/endpoint";  // Replace with the specific request endpoint you are interested in
+let requestData = requests
+    | where url contains specificEndpoint // Filter by the specific endpoint
+    | where timestamp >= ago(1h)  // You can adjust the time window as needed (e.g., last 1 hour)
+    | project requestId, name, timestamp, duration, operation_Id, url;
+
+let dependencyData = dependencies
+    | where timestamp >= ago(1h)  // Same time window as requests
+    | project requestId, target, type, duration, timestamp, operation_Id, name, resultCode, dependencyType = type;
+
+// Join requests with their dependencies based on the operation Id
+requestData
+| join kind=inner (dependencyData) on operation_Id
+| project requestId, name, timestamp, requestDuration=duration, url, target, dependencyType, dependencyDuration=duration, resultCode
+| order by timestamp desc
