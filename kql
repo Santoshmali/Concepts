@@ -1,0 +1,49 @@
+let request_data = 
+    requests
+    | summarize RequestCount = count(), AvgDuration = avg(duration) by Day = bin(timestamp, 1d), RequestId = tostring(url);
+
+// Calculate the percentiles for request counts per day
+let percentiles_data = 
+    request_data
+    | summarize p10 = percentile(RequestCount, 10), 
+                p20 = percentile(RequestCount, 20),
+                p30 = percentile(RequestCount, 30),
+                p40 = percentile(RequestCount, 40),
+                p50 = percentile(RequestCount, 50),
+                p60 = percentile(RequestCount, 60),
+                p70 = percentile(RequestCount, 70),
+                p80 = percentile(RequestCount, 80),
+                p90 = percentile(RequestCount, 90)
+            by Day;
+
+// Create a new column for each 10% percentile range
+let duration_by_percentile = 
+    request_data
+    | extend PercentileRange = case(
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p10), "0-10%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p20), "10-20%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p30), "20-30%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p40), "30-40%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p50), "40-50%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p60), "50-60%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p70), "60-70%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p80), "70-80%",
+        RequestCount <= toscalar(percentiles_data | where Day == bin(timestamp, 1d) | project p90), "80-90%",
+        "90-100%")
+    | summarize AvgDuration_0_10 = avgif(AvgDuration, PercentileRange == "0-10%"),
+                AvgDuration_10_20 = avgif(AvgDuration, PercentileRange == "10-20%"),
+                AvgDuration_20_30 = avgif(AvgDuration, PercentileRange == "20-30%"),
+                AvgDuration_30_40 = avgif(AvgDuration, PercentileRange == "30-40%"),
+                AvgDuration_40_50 = avgif(AvgDuration, PercentileRange == "40-50%"),
+                AvgDuration_50_60 = avgif(AvgDuration, PercentileRange == "50-60%"),
+                AvgDuration_60_70 = avgif(AvgDuration, PercentileRange == "60-70%"),
+                AvgDuration_70_80 = avgif(AvgDuration, PercentileRange == "70-80%"),
+                AvgDuration_80_90 = avgif(AvgDuration, PercentileRange == "80-90%"),
+                AvgDuration_90_100 = avgif(AvgDuration, PercentileRange == "90-100%")
+            by Day;
+
+duration_by_percentile
+| project Day, AvgDuration_0_10, AvgDuration_10_20, AvgDuration_20_30, AvgDuration_30_40, 
+          AvgDuration_40_50, AvgDuration_50_60, AvgDuration_60_70, AvgDuration_70_80, 
+          AvgDuration_80_90, AvgDuration_90_100
+| order by Day desc
