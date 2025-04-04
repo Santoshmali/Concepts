@@ -64,3 +64,33 @@ union
     | where Timestamp > ago(1h)
     | project RequestId = operation_Id, DependencyName = name, DependencyDuration = duration, Timestamp
 | order by Timestamp asc
+
+
+//
+
+requests
+| where timestamp > ago(1d) // Filter for requests in the last 24 hours
+| join kind=inner (
+    traces
+    | where timestamp > ago(1d) // Ensure traces are also in the last 24 hours
+    | project TraceId = operation_Id, TraceName = name, TraceDuration = duration, TraceMessage = message, TraceTimestamp = timestamp, TraceSeverityLevel = severityLevel
+) on $left.id == $right.TraceId
+| join kind=inner (
+    dependencies
+    | where timestamp > ago(1d) // Ensure dependencies are also in the last 24 hours
+    | project DependencyId = operation_Id, DependencyName = name, DependencyDuration = duration, DependencyTimestamp = timestamp, DependencyType = type, DependencyTarget = target, DependencyResultCode = resultCode, DependencySuccess = success
+) on $left.id == $right.DependencyId
+| project 
+    RequestId = id, 
+    RequestName = name, 
+    RequestDuration = duration, 
+    RequestTimestamp = timestamp, 
+    RequestUrl = url, 
+    RequestResponseCode = responseCode, 
+    RequestClientIP = client_IP, 
+    RequestUserAgent = userAgent, 
+    RequestSuccess = success,
+    TraceName, TraceDuration, TraceMessage, TraceTimestamp, TraceSeverityLevel,
+    DependencyName, DependencyDuration, DependencyTimestamp, DependencyType, DependencyTarget, DependencyResultCode, DependencySuccess
+| order by RequestTimestamp asc
+
