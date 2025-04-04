@@ -47,3 +47,20 @@ duration_by_percentile
           AvgDuration_40_50, AvgDuration_50_60, AvgDuration_60_70, AvgDuration_70_80, 
           AvgDuration_80_90, AvgDuration_90_100
 | order by Day desc
+
+
+//
+
+union 
+    requests 
+    | where Timestamp > ago(1h) // Adjust time range as necessary
+    | project RequestId = id, RequestName = name, RequestDuration = duration, Timestamp
+, 
+    traces 
+    | where Timestamp > ago(1h)
+    | project RequestId = operation_Id, TraceName = name, TraceDuration = duration, Timestamp
+, 
+    dependencies 
+    | where Timestamp > ago(1h)
+    | project RequestId = operation_Id, DependencyName = name, DependencyDuration = duration, Timestamp
+| order by Timestamp asc
