@@ -1,3 +1,14 @@
+
+requests
+| summarize total_count = count(), 
+            failed_401_count = countif(resultCode == "401"),
+            success_count = countif(resultCode == "200") 
+  by bin(timestamp, 1h)
+| extend percent_401 = todouble(failed_401_count) / total_count * 100,
+         percent_success = todouble(success_count) / total_count * 100
+
+//
+
 let request_data = 
     requests
     | summarize RequestCount = count(), AvgDuration = avg(duration) by Day = bin(timestamp, 1d), RequestId = tostring(url);
