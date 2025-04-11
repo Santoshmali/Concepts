@@ -1,5 +1,17 @@
 
 requests
+| summarize total_count = count() by resultCode
+| join kind=inner (
+    requests
+    | where resultCode == "200"
+    | summarize passed_count = count()
+) on $left.resultCode == $right.resultCode or isnull($left.resultCode)
+| extend percentage_vs_passed = todouble(total_count) / passed_count * 100
+
+
+
+//
+requests
 | summarize total_count = count(), 
             failed_401_count = countif(resultCode == "401"),
             success_count = countif(resultCode == "200") 
