@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merge videos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ECEFF2;
+    --surface: #FBFCFD;
+    --surface-2: #F2F5F7;
+    --ink: #121B26;
+    --muted: #55636F;
+    --line: #CDD5DC;
+    --accent: #D62839;
+    --accent-wash: rgba(214, 40, 57, .08);
+    --on-accent: #FFFFFF;
+    --film: #17202A;
+    --hole: #ECEFF2;
+    --ok: #1F7A5A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0F151B;
+      --surface: #172029;
+      --surface-2: #1D2732;
+      --ink: #E6ECF1;
+      --muted: #93A1AD;
+      --line: #2A3743;
+      --accent: #FF4D5E;
+      --accent-wash: rgba(255, 77, 94, .1);
+      --on-accent: #1A0508;
+      --film: #0A0F14;
+      --hole: #0F151B;
+      --ok: #55C79B;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.5 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: clamp(24px, 6vw, 64px) clamp(16px, 4vw, 32px) 96px;
+    display: grid;
+    gap: 24px;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: clamp(2.4rem, 7vw, 4rem);
+    line-height: .95;
+    font-weight: 750;
+    letter-spacing: -.035em;
+  }
+  h2 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -.01em; }
+  .lede { margin: 0; color: var(--muted); max-width: 56ch; }
+
+  /* ---------- drop zone ---------- */
+  .drop {
+    border: 2px dashed var(--line);
+    border-radius: 14px;
+    padding: 48px 24px;
+    text-align: center;
+    background: var(--surface);
+    transition: border-color .15s, background-color .15s;
+  }
+  .drop.over { border-color: var(--accent); background: var(--accent-wash); }
+  .drop-title { margin: 0 0 4px; font-size: 1.35rem; font-weight: 650; letter-spacing: -.01em; }
+  .drop-sub { margin: 0 0 20px; color: var(--muted); }
+  .drop.compact {
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    text-align: left;
+  }
+  .drop.compact .drop-title { margin: 0; font-size: 1rem; }
+  .drop.compact .drop-sub { display: none; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    font: inherit; font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 9px;
+    border: 1.5px solid var(--ink);
+    background: transparent; color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--ink); color: var(--bg); }
+  .btn.quiet { border-color: var(--line); font-weight: 500; padding: 6px 12px; font-size: .9rem; }
+  .btn.quiet:hover { background: var(--line); color: var(--ink); }
+  .btn.primary {
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+    font-size: 1.05rem; font-weight: 700; padding: 13px 26px;
+  }
+  .btn.primary:hover { filter: brightness(1.08); background: var(--accent); color: var(--on-accent); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  .btn:disabled:hover { background: transparent; color: var(--ink); }
+  .btn.primary:disabled:hover { background: var(--accent); color: var(--on-accent); }
+  a.btn { display: inline-block; text-decoration: none; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- panels ---------- */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: clamp(16px, 3vw, 24px);
+  }
+  .panel-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .summary { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tools { display: flex; gap: 8px; }
+
+  /* ---------- film strip timeline ---------- */
+  .strip-wrap { position: relative; }
+  .strip {
+    position: relative;
+    display: flex; gap: 3px;
+    height: 88px;
+    padding: 14px 10px;
+    background: var(--film);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .strip::before, .strip::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 5px;
+    background: repeating-linear-gradient(90deg, var(--hole) 0 7px, transparent 7px 17px);
+    opacity: .55;
+  }
+  .strip::before { top: 4px; }
+  .strip::after { bottom: 4px; }
+  .seg {
+    flex: 1 1 0; min-width: 18px;
+    background: #2b3743 center / cover no-repeat;
+    border-radius: 3px;
+    color: #fff; font-size: .75rem; font-weight: 600;
+    padding: 2px 5px; overflow: hidden;
+    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+    font-variant-numeric: tabular-nums;
+  }
+  .seg.bad { background-image: none; outline: 1px dashed var(--accent); outline-offset: -1px; }
+  .playhead {
+    position: absolute; top: -6px; bottom: -6px; left: 0;
+    width: 2px; background: var(--accent);
+    pointer-events: none;
+  }
+  .playhead::before {
+    content: ''; position: absolute; top: 0; left: -5px;
+    border: 6px solid transparent; border-top-color: var(--accent); border-bottom: 0;
+  }
+
+  /* ---------- clip list ---------- */
+  .clips { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; }
+  .clip {
+    display: grid;
+    grid-template-columns: auto 96px minmax(0, 1fr) auto;
+    gap: 12px; align-items: center;
+    padding: 8px 10px 8px 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .clip.dragging { opacity: .4; }
+  .clip.drop-before { box-shadow: 0 -3px 0 0 var(--accent); }
+  .clip.drop-after { box-shadow: 0 3px 0 0 var(--accent); }
+  .grip { cursor: grab; color: var(--muted); display: grid; place-items: center; padding: 6px 4px; }
+  .thumb {
+    width: 96px; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: 6px; background: var(--film); display: block;
+  }
+  .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
+  .clip.is-error .meta { color: var(--accent); }
+  .actions { display: flex; gap: 2px; }
+  .icon-btn {
+    width: 36px; height: 36px; display: grid; place-items: center;
+    border: 0; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--line); }
+  .icon-btn:disabled { opacity: .3; cursor: default; background: transparent; }
+
+  /* ---------- settings ---------- */
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+  .field { display: grid; gap: 6px; align-content: start; }
+  .field > span { font-weight: 600; font-size: .95rem; }
+  select {
+    font: inherit; color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 10px; width: 100%;
+  }
+  .check { display: flex; align-items: center; gap: 10px; margin-top: 18px; font-weight: 500; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .note { margin: 0; color: var(--muted); font-size: .875rem; }
+
+  .merge-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 22px; }
+
+  /* ---------- recording stage ---------- */
+  canvas#canvas {
+    display: block; width: 100%; height: auto; max-height: 60vh; object-fit: contain;
+    background: #000; border-radius: 8px;
+  }
+  .bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 16px 0 10px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .stage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .status { font-variant-numeric: tabular-nums; }
+
+  /* ---------- result ---------- */
+  #resultVideo { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: 8px; }
+  .result-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+  .result-meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .notice { margin: 0; padding: 12px 16px; border-radius: 10px; background: var(--accent-wash); border: 1px solid var(--accent); }
+
+  @media (max-width: 560px) {
+    .clip { grid-template-columns: auto 64px minmax(0, 1fr); }
+    .thumb { width: 64px; }
+    .actions { grid-column: 1 / -1; justify-content: flex-end; }
+    .drop.compact { flex-direction: column; align-items: stretch; text-align: center; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Merge videos</h1>
+    <p class="lede">Join clips into one file. Everything happens in your browser, so your videos are never uploaded.</p>
+  </header>
+
+  <p class="notice" id="notice" role="status" hidden></p>
+
+  <div id="editor" style="display:contents">
+    <section class="drop" id="drop" aria-label="Add videos">
+      <input type="file" id="file" accept="video/*" multiple hidden>
+      <p class="drop-title">Drop videos here</p>
+      <p class="drop-sub">Camera MP4 and MOV files work, including 4K HEVC. Clips play in the order you list them.</p>
+      <button type="button" class="btn" id="pick">Choose videos</button>
+    </section>
+
+    <section class="panel" id="project" hidden aria-labelledby="tl-h">
+      <div class="panel-head">
+        <h2 id="tl-h">Timeline</h2>
+        <span class="summary" id="summary"></span>
+      </div>
+      <div class="strip-wrap">
+        <div class="strip" id="strip" aria-hidden="true"></div>
+        <div class="playhead" id="playhead" hidden></div>
+      </div>
+      <ol class="clips" id="list"></ol>
+      <div class="tools" style="margin-top:14px">
+        <button type="button" class="btn quiet" id="sort">Sort by name</button>
+        <button type="button" class="btn quiet" id="clear">Remove all</button>
+      </div>
+    </section>
+
+    <section class="panel" id="settings" hidden aria-labelledby="out-h">
+      <div class="panel-head"><h2 id="out-h">Output</h2></div>
+      <div class="fields">
+        <label class="field" style="grid-column:1/-1"><span>How to join</span>
+          <select id="method">
+            <option value="copy">Join without re-encoding (fast, original quality)</option>
+            <option value="record">Re-record (real time, can resize and mix formats)</option>
+          </select>
+          <p class="note" id="methodNote"></p>
+        </label>
+        <label class="field rec-only"><span>Resolution</span>
+          <select id="res">
+            <option value="first">Match first clip</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+          </select>
+        </label>
+        <label class="field rec-only"><span>Clips with a different shape</span>
+          <select id="fit">
+            <option value="contain">Fit inside frame (black bars)</option>
+            <option value="cover">Fill frame (crop edges)</option>
+          </select>
+        </label>
+        <label class="field rec-only"><span>Frame rate</span>
+          <select id="fps">
+            <option value="24">24 fps</option>
+            <option value="30" selected>30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+        </label>
+        <label class="field rec-only"><span>Quality</span>
+          <select id="quality">
+            <option value="0.07">Smaller file</option>
+            <option value="0.12" selected>Balanced</option>
+            <option value="0.2">Best quality</option>
+          </select>
+        </label>
+        <label class="field rec-only"><span>File format</span>
+          <select id="format"></select>
+          <p class="note" id="formatNote" hidden>WebM files can lack a duration and skip poorly in some players.</p>
+        </label>
+        <label class="check rec-only"><input type="checkbox" id="audio" checked> Include sound</label>
+      </div>
+      <div class="merge-row">
+        <button type="button" class="btn primary" id="merge" disabled>Merge videos</button>
+        <span class="note" id="mergeHint"></span>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" id="stage" hidden aria-labelledby="rec-h">
+    <div class="panel-head"><h2 id="rec-h">Merging</h2></div>
+    <canvas id="canvas" width="1280" height="720"></canvas>
+    <div class="bar" role="progressbar" aria-label="Merge progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar"><i id="barFill"></i></div>
+    <div class="stage-row">
+      <span class="status"><span id="statusText" role="status"></span> <span id="time"></span></span>
+      <button type="button" class="btn quiet" id="cancel">Cancel</button>
+    </div>
+    <p class="note" style="margin-top:12px">The merge records in real time. Keep this tab open and in front until it finishes.</p>
+  </section>
+
+  <section class="panel" id="result" hidden aria-labelledby="res-h">
+    <div class="panel-head"><h2 id="res-h">Your merged video</h2></div>
+    <video id="resultVideo" controls playsinline></video>
+    <p class="note" id="resultNote" style="margin-top:12px" hidden></p>
+    <div class="result-row">
+      <span class="result-meta" id="resultMeta"></span>
+      <a class="btn primary" id="download" href="#">Download video</a>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (s) => document.querySelector(s);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') n.className = v;
+      else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of kids.flat()) if (c != null) n.append(c);
+    return n;
+  };
+  const icon = (paths, fill) => {
+    const s = document.createElement('span');
+    s.style.display = 'grid';
+    s.innerHTML = `<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" ${fill ? 'fill="currentColor"' : 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'}>${paths}</svg>`;
+    return s;
+  };
+  const ICON = {
+    up: '<path d="M5 12l5-5 5 5"/>',
+    down: '<path d="M5 8l5 5 5-5"/>',
+    remove: '<path d="M5 5l10 10M15 5L5 15"/>',
+    grip: '<circle cx="7" cy="5" r="1.5"/><circle cx="13" cy="5" r="1.5"/><circle cx="7" cy="10" r="1.5"/><circle cx="13" cy="10" r="1.5"/><circle cx="7" cy="15" r="1.5"/><circle cx="13" cy="15" r="1.5"/>',
+  };
+
+  const fmtTime = (s) => {
+    s = Math.max(0, Math.round(s));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+  };
+  const fmtSize = (b) => b > 1e9 ? (b / 1e9).toFixed(2) + ' GB' : (b / 1e6).toFixed(1) + ' MB';
+  const stamp = () => {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+  };
+
+  const state = { clips: [], nextId: 1, merging: false, cancel: false, resultUrl: null, current: null };
+
+  /* ---------- browser support ---------- */
+  const FORMATS = [
+    { id: 'mp4', label: 'MP4 (H.264)', ext: 'mp4', mimes: ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'] },
+    { id: 'webm', label: 'WebM (VP9)', ext: 'webm', mimes: ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'] },
+  ];
+  const canRecord = typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement.prototype.captureStream === 'function';
+  const formats = canRecord
+    ? FORMATS.map((f) => ({ ...f, mime: f.mimes.find((m) => MediaRecorder.isTypeSupported(m)) })).filter((f) => f.mime)
+    : [];
+
+  const formatSel = $('#format');
+  formats.forEach((f) => formatSel.append(el('option', { value: f.id, text: f.label })));
+  const syncFormatNote = () => { $('#formatNote').hidden = formatSel.value !== 'webm'; };
+  formatSel.addEventListener('change', syncFormatNote);
+  syncFormatNote();
+
+
+  function notice(msg) {
+    const n = $('#notice');
+    n.textContent = msg;
+    n.hidden = !msg;
+  }
+
+  /* ---------- adding files ---------- */
+  const isVideo = (f) => f.type.startsWith('video/') || /\.(mp4|m4v|mov|webm|mkv|avi|ogv|3gp)$/i.test(f.name);
+
+  function addFiles(fileList) {
+    const files = [...fileList];
+    const videos = files.filter(isVideo);
+    const skipped = files.length - videos.length;
+    notice(skipped ? `Skipped ${skipped} file${skipped > 1 ? 's' : ''} that ${skipped > 1 ? 'aren’t' : 'isn’t'} a video.` : '');
+    const added = videos.map((file) => ({
+      id: state.nextId++, file, name: file.name, url: URL.createObjectURL(file),
+      pending: true, duration: 0, w: 0, h: 0, thumb: '', error: '',
+    }));
+    state.clips.push(...added);
+    render();
+    added.forEach((c) => probe(c).then(async (err) => {
+      c.pending = false;
+      c.error = err || '';
+      // The browser can't decode this video (often HEVC), but the file can still be joined as-is.
+      if (c.noVideo || (err && isMp4Family(c))) {
+        try {
+          c.mp4 = await readMp4(c.file);
+          c.w = c.mp4.width; c.h = c.mp4.height; c.duration = c.mp4.duration;
+          c.noDecode = true; c.error = '';
+        } catch (e) { c.error = (e && e.message) || c.error; }
+      }
+      render();
+      if (state.clips.some((x) => x.noDecode)) {
+        notice('Some clips can’t be previewed here (usually HEVC from a 4K camera). They can still be joined without re-encoding.');
+      }
+    }));
+  }
+
+  const hevcOk = document.createElement('video').canPlayType('video/mp4; codecs="hvc1.1.6.L153.B0"') !== '';
+
+  function probe(clip) {
+    return new Promise((resolve) => {
+      const v = document.createElement('video');
+      v.muted = true; v.preload = 'metadata'; v.playsInline = true;
+      let stage = 0, done = false;
+      const failMsg = 'This browser can’t read this file. Try an MP4 (H.264) or WebM.';
+      const finish = (err) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        v.removeAttribute('src'); v.load();
+        resolve(err);
+      };
+      const timer = setTimeout(() => finish(clip.duration ? '' : failMsg), 15000);
+      const startThumb = () => {
+        clip.duration = v.duration;
+        if (!isFinite(clip.duration) || !clip.w) return finish(failMsg);
+        stage = 2;
+        v.currentTime = Math.min(0.5, clip.duration / 2);
+      };
+      v.onerror = () => finish(failMsg);
+      v.onloadedmetadata = () => {
+        clip.w = v.videoWidth; clip.h = v.videoHeight;
+        if (!clip.w) {
+          // Duration is readable but no picture: the browser can't decode the video codec.
+          clip.noVideo = true;
+          return finish(hevcOk
+            ? 'The browser can’t decode this video (the codec or 10-bit color isn’t supported).'
+            : 'This browser can’t decode this video. It is probably HEVC (H.265), which most 4K cameras use.');
+        }
+        if (v.duration === Infinity) { stage = 1; v.currentTime = 1e101; return; }
+        startThumb();
+      };
+      v.ontimeupdate = () => { if (stage === 1 && isFinite(v.duration)) startThumb(); };
+      v.onseeked = () => {
+        if (stage !== 2) return;
+        try {
+          const c = document.createElement('canvas');
+          c.width = 240; c.height = Math.max(1, Math.round(240 * clip.h / clip.w));
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+          clip.thumb = c.toDataURL('image/jpeg', 0.7);
+        } catch (e) { /* thumbnail is optional */ }
+        finish('');
+      };
+      v.src = clip.url;
+    });
+  }
+
+  /* ---------- rendering ---------- */
+  function validClips() { return state.clips.filter((c) => !c.pending && !c.error && c.duration); }
+
+  function render() {
+    const list = $('#list');
+    list.replaceChildren();
+    const strip = $('#strip');
+    strip.replaceChildren();
+    const n = state.clips.length;
+
+    state.clips.forEach((c, i) => {
+      const li = el('li', { class: 'clip' + (c.error ? ' is-error' : ''), 'data-id': c.id, draggable: 'true' },
+        el('span', { class: 'grip', title: 'Drag to reorder' }, icon(ICON.grip, true)),
+        c.thumb ? el('img', { class: 'thumb', src: c.thumb, alt: '' }) : el('div', { class: 'thumb' }),
+        el('div', { style: 'min-width:0' },
+          el('div', { class: 'name', title: c.name, text: c.name }),
+          el('div', { class: 'meta', text: c.pending ? 'Reading file…' : (c.error || `${fmtTime(c.duration)} · ${c.w}×${c.h}${c.noDecode ? ' · no preview' : ''}`) })),
+        el('div', { class: 'actions' },
+          el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Move ${c.name} up`, disabled: i === 0, onclick: () => move(c.id, -1) }, icon(ICON.up)),
+          el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Move ${c.name} down`, disabled: i === n - 1, onclick: () => move(c.id, 1) }, icon(ICON.down)),
+          el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Remove ${c.name}`, onclick: () => remove(c.id) }, icon(ICON.remove))));
+      list.append(li);
+
+      if (!c.pending) {
+        const seg = el('div', { class: 'seg' + (c.error ? ' bad' : ''), title: c.name, text: String(i + 1) });
+        seg.style.flexGrow = c.error ? 0.2 : Math.max(c.duration, 0.1);
+        if (c.thumb) seg.style.backgroundImage = `url("${c.thumb}")`;
+        strip.append(seg);
+      }
+    });
+
+    const valid = validClips();
+    const total = valid.reduce((a, c) => a + c.duration, 0);
+    $('#project').hidden = !n;
+    $('#settings').hidden = !n;
+    $('#drop').classList.toggle('compact', n > 0);
+    $('.drop-title').textContent = n ? 'Add more videos' : 'Drop videos here';
+    $('#summary').textContent = n ? `${valid.length} clip${valid.length === 1 ? '' : 's'} · ${fmtTime(total)} total` : '';
+    $('#sort').disabled = n < 2;
+    syncMethod(valid, total);
+    $('#merge').textContent = valid.length >= 2 ? `Merge ${valid.length} videos` : 'Merge videos';
+    $('#merge').disabled = valid.length < 2 || state.merging;
+  }
+
+  function syncMethod(valid, total) {
+    const sel = $('#method');
+    sel.querySelector('option[value="record"]').disabled = !formats.length;
+    if (!formats.length) sel.value = 'copy';
+    else if (!state.methodTouched && valid.length) sel.value = valid.every(isMp4Family) ? 'copy' : 'record';
+    const copy = sel.value === 'copy';
+    document.querySelectorAll('.rec-only').forEach((n) => { n.hidden = copy; });
+    $('#methodNote').textContent = copy
+      ? 'Stitches the original files together in seconds. Clips must share the same camera and settings. Works with HEVC and 4K.'
+      : 'Plays each clip and records it again. Takes as long as the videos and needs a browser that can decode them, but it can resize and mix formats.';
+    $('#mergeHint').textContent = valid.length < 2
+      ? 'Add at least two readable videos.'
+      : (copy ? 'Joins in seconds and keeps the original quality.' : `Takes about ${fmtTime(total)}, because the merge records in real time.`);
+  }
+
+  function move(id, delta) {
+    const i = state.clips.findIndex((c) => c.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= state.clips.length) return;
+    [state.clips[i], state.clips[j]] = [state.clips[j], state.clips[i]];
+    render();
+    const btn = $(`#list li[data-id="${id}"] .icon-btn:nth-child(${delta < 0 ? 1 : 2})`);
+    if (btn && !btn.disabled) btn.focus();
+  }
+  function remove(id) {
+    const i = state.clips.findIndex((c) => c.id === id);
+    if (i < 0) return;
+    URL.revokeObjectURL(state.clips[i].url);
+    state.clips.splice(i, 1);
+    render();
+  }
+
+  /* ---------- drag to reorder ---------- */
+  let dragId = null;
+  const list = $('#list');
+  const clearMarks = () => list.querySelectorAll('.drop-before,.drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
+  list.addEventListener('dragstart', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    dragId = +li.dataset.id;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragId));
+  });
+  list.addEventListener('dragover', (e) => {
+    if (dragId == null) return;
+    e.preventDefault();
+    clearMarks();
+    const li = e.target.closest('li');
+    if (li && +li.dataset.id !== dragId) {
+      const r = li.getBoundingClientRect();
+      li.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+    }
+  });
+  list.addEventListener('drop', (e) => {
+    if (dragId == null) return;
+    e.preventDefault();
+    const li = e.target.closest('li');
+    if (li && +li.dataset.id !== dragId) {
+      const r = li.getBoundingClientRect();
+      const before = e.clientY < r.top + r.height / 2;
+      const from = state.clips.findIndex((c) => c.id === dragId);
+      const [item] = state.clips.splice(from, 1);
+      let to = state.clips.findIndex((c) => c.id === +li.dataset.id);
+      if (!before) to += 1;
+      state.clips.splice(to, 0, item);
+    }
+    dragId = null;
+    render();
+  });
+  list.addEventListener('dragend', () => { dragId = null; clearMarks(); render(); });
+
+  /* ---------- file input + drop zone ---------- */
+  const fileInput = $('#file'), drop = $('#drop');
+  $('#pick').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+  const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); drop.classList.add('over'); } });
+  window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) drop.classList.remove('over'); });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    drop.classList.remove('over');
+    if (!state.merging) addFiles(e.dataTransfer.files);
+  });
+
+  $('#sort').addEventListener('click', () => {
+    state.clips.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    render();
+  });
+  $('#clear').addEventListener('click', () => {
+    state.clips.forEach((c) => URL.revokeObjectURL(c.url));
+    state.clips = [];
+    notice('');
+    render();
+  });
+
+  /* ---------- join MP4/MOV files without decoding ---------- */
+  const isMp4Family = (c) => /\.(mp4|m4v|mov)$/i.test(c.name);
+  const enc = new TextEncoder();
+  const fourcc = (dv, o) => String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3));
+  const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+  async function readTopLevel(file) {
+    const boxes = [];
+    let pos = 0;
+    while (pos + 8 <= file.size) {
+      const h = new DataView(await file.slice(pos, Math.min(pos + 16, file.size)).arrayBuffer());
+      let size = h.getUint32(0), hlen = 8;
+      const type = fourcc(h, 4);
+      if (size === 1) { if (h.byteLength < 16) break; size = Number(h.getBigUint64(8)); hlen = 16; }
+      else if (size === 0) size = file.size - pos;
+      if (size < hlen) break;
+      size = Math.min(size, file.size - pos);
+      boxes.push({ type, start: pos, size, hlen, end: pos + size });
+      pos += size;
+    }
+    return boxes;
+  }
+
+  function children(dv, start, end) {
+    const out = [];
+    let pos = start;
+    while (pos + 8 <= end) {
+      let size = dv.getUint32(pos), hlen = 8;
+      const type = fourcc(dv, pos + 4);
+      if (size === 1) { size = Number(dv.getBigUint64(pos + 8)); hlen = 16; }
+      else if (size === 0) size = end - pos;
+      if (size < hlen || pos + size > end) break;
+      out.push({ type, start: pos, size, hlen, body: pos + hlen, end: pos + size });
+      pos += size;
+    }
+    return out;
+  }
+  const kid = (dv, box, type) => children(dv, box.body, box.end).find((b) => b.type === type);
+
+  function parseTrack(dv, trak) {
+    const tkhd = kid(dv, trak, 'tkhd'), mdia = kid(dv, trak, 'mdia');
+    if (!tkhd || !mdia) return null;
+    const mdhd = kid(dv, mdia, 'mdhd'), hdlr = kid(dv, mdia, 'hdlr'), minf = kid(dv, mdia, 'minf');
+    if (!mdhd || !hdlr || !minf) return null;
+    const handler = fourcc(dv, hdlr.body + 8);
+    if (handler !== 'vide' && handler !== 'soun') return null;
+    const stbl = kid(dv, minf, 'stbl');
+    if (!stbl) return null;
+    const sb = {};
+    children(dv, stbl.body, stbl.end).forEach((b) => { sb[b.type] = b; });
+    if (!sb.stsd || !sb.stts || !sb.stsc || !sb.stsz || !(sb.stco || sb.co64)) {
+      throw new Error('This file’s track layout isn’t supported for joining.');
+    }
+    const mv = dv.getUint8(mdhd.body);
+    const timescale = dv.getUint32(mdhd.body + (mv ? 20 : 12));
+    const duration = mv ? Number(dv.getBigUint64(mdhd.body + 24)) : dv.getUint32(mdhd.body + 16);
+
+    const entries = [];
+    { let o = sb.stsd.body + 4; const n = dv.getUint32(o); o += 4;
+      for (let i = 0; i < n; i++) {
+        const sz = dv.getUint32(o);
+        entries.push(new Uint8Array(dv.buffer, dv.byteOffset + o, sz).slice());
+        o += sz;
+      } }
+    const rows = (box, width) => {
+      const out = []; let p = box.body + 4; const n = dv.getUint32(p); p += 4;
+      for (let i = 0; i < n; i++) { const r = []; for (let k = 0; k < width; k++) { r.push(dv.getUint32(p)); p += 4; } out.push(r); }
+      return out;
+    };
+    let sizes;
+    { const p = sb.stsz.body + 4, fixed = dv.getUint32(p), count = dv.getUint32(p + 4);
+      sizes = new Array(count);
+      for (let i = 0; i < count; i++) sizes[i] = fixed || dv.getUint32(p + 8 + i * 4); }
+    let offs;
+    { let p = sb.stco ? sb.stco.body + 4 : sb.co64.body + 4; const n = dv.getUint32(p); p += 4;
+      offs = new Array(n);
+      for (let i = 0; i < n; i++) {
+        if (sb.stco) { offs[i] = dv.getUint32(p); p += 4; } else { offs[i] = Number(dv.getBigUint64(p)); p += 8; }
+      } }
+    return {
+      handler, timescale, duration, entries, sizes, offs, sampleCount: sizes.length,
+      stts: rows(sb.stts, 2),
+      ctts: sb.ctts ? rows(sb.ctts, 2) : null,
+      cttsVersion: sb.ctts ? dv.getUint8(sb.ctts.body) : null,
+      stss: sb.stss ? rows(sb.stss, 1).map((r) => r[0]) : null,
+      stsc: rows(sb.stsc, 3),
+      boxes: { trak, tkhd, mdia, mdhd, hdlr, minf },
+    };
+  }
+
+  async function readMp4(file) {
+    const top = await readTopLevel(file);
+    const moovB = top.find((b) => b.type === 'moov');
+    const mdats = top.filter((b) => b.type === 'mdat');
+    const ftypB = top.find((b) => b.type === 'ftyp');
+    if (!moovB || !mdats.length) throw new Error(`${file.name} isn’t a standard MP4 or MOV file.`);
+    if (top.some((b) => b.type === 'moof')) throw new Error(`${file.name} is a fragmented MP4, which can’t be joined this way.`);
+    const buf = await file.slice(moovB.start, moovB.end).arrayBuffer();
+    const dv = new DataView(buf);
+    const moov = children(dv, 0, buf.byteLength)[0];
+    if (!moov || moov.type !== 'moov') throw new Error(`Couldn’t read the header of ${file.name}.`);
+    const kids = children(dv, moov.body, moov.end);
+    if (kids.some((b) => b.type === 'mvex')) throw new Error(`${file.name} is a fragmented MP4, which can’t be joined this way.`);
+    const mvhd = kids.find((b) => b.type === 'mvhd');
+    if (!mvhd) throw new Error(`Couldn’t read the header of ${file.name}.`);
+    const mvTimescale = dv.getUint32(mvhd.body + (dv.getUint8(mvhd.body) ? 20 : 12));
+    const tracks = kids.filter((b) => b.type === 'trak').map((t) => parseTrack(dv, t)).filter(Boolean);
+    const video = tracks.find((t) => t.handler === 'vide');
+    if (!video) throw new Error(`${file.name} has no video track.`);
+    const tk = video.boxes.tkhd;
+    const wOff = tk.body + (dv.getUint8(tk.body) ? 88 : 76);
+    return {
+      file, buf, dv, mvhd, mvTimescale, tracks,
+      dataStart: Math.min(...mdats.map((b) => b.start + b.hlen)),
+      dataEnd: Math.max(...mdats.map((b) => b.end)),
+      ftyp: ftypB ? new Uint8Array(await file.slice(ftypB.start, ftypB.end).arrayBuffer()) : new Uint8Array(0),
+      width: dv.getUint32(wOff) >>> 16,
+      height: dv.getUint32(wOff + 4) >>> 16,
+      duration: video.duration / video.timescale,
+    };
+  }
+
+  function box(type, ...payloads) {
+    const parts = payloads.flat();
+    let len = 8;
+    for (const p of parts) len += p.byteLength;
+    const out = new Uint8Array(len);
+    new DataView(out.buffer).setUint32(0, len);
+    out.set(enc.encode(type), 4);
+    let o = 8;
+    for (const p of parts) { out.set(p, o); o += p.byteLength; }
+    return out;
+  }
+  function table(type, version, rows, width) {
+    const b = new Uint8Array(8 + rows.length * width * 4);
+    const dv = new DataView(b.buffer);
+    dv.setUint8(0, version);
+    dv.setUint32(4, rows.length);
+    let o = 8;
+    for (const r of rows) for (let k = 0; k < width; k++) { dv.setUint32(o, (width === 1 ? r : r[k]) >>> 0); o += 4; }
+    return box(type, b);
+  }
+  function setDuration(bytes, bodyOff, v, tk, value) {
+    const dv = new DataView(bytes.buffer);
+    const off = bodyOff + (tk ? (v ? 28 : 20) : (v ? 24 : 16));
+    if (v) dv.setBigUint64(off, BigInt(value)); else dv.setUint32(off, value >>> 0);
+  }
+
+  // Concatenates the media data of every clip and rewrites the index (moov) so it
+  // points at the right places. No frame is decoded, so any codec (HEVC, 10-bit, …) works.
+  function buildJoined(infos) {
+    const ref = infos[0];
+    infos.forEach((info, i) => {
+      if (info.tracks.length !== ref.tracks.length) {
+        throw new Error(`Clip ${i + 1} has different tracks than clip 1 (for example, sound on one clip but not another), so they can’t be joined without re-encoding.`);
+      }
+      info.tracks.forEach((t, k) => {
+        if (t.handler !== ref.tracks[k].handler || t.timescale !== ref.tracks[k].timescale) {
+          throw new Error(`Clip ${i + 1} was recorded with different timing settings than clip 1, so they can’t be joined without re-encoding.`);
+        }
+        const codec = (x) => fourcc(new DataView(x.entries[0].buffer), 4);
+        if (codec(t) !== codec(ref.tracks[k])) {
+          throw new Error(`Clip ${i + 1} uses a different video or audio format than clip 1, so they can’t be joined without re-encoding.`);
+        }
+      });
+    });
+
+    const bases = [];
+    let D = 0;
+    infos.forEach((info) => { bases.push(D); D += info.dataEnd - info.dataStart; });
+    const bigMdat = D + 8 > 0xFFFFFFFF;
+    const payloadBase = ref.ftyp.length + (bigMdat ? 16 : 8);
+    const big = payloadBase + D > 0xFFFFFFFF;
+
+    let movieDur = 0;
+    const traks = ref.tracks.map((rt, ti) => {
+      const acc = { stts: [], ctts: [], stss: [], stsc: [], sizes: [], offs: [], samples: 0, chunks: 0, dur: 0 };
+      const anyCtts = infos.some((i) => i.tracks[ti].ctts);
+      const anyStss = infos.some((i) => i.tracks[ti].stss);
+      const entries = [];
+      infos.forEach((info, fi) => {
+        const t = info.tracks[ti];
+        const map = t.entries.map((e) => {
+          let idx = entries.findIndex((x) => sameBytes(x, e));
+          if (idx < 0) { entries.push(e); idx = entries.length - 1; }
+          return idx + 1;
+        });
+        for (const [c, d] of t.stts) {
+          const last = acc.stts[acc.stts.length - 1];
+          if (last && last[1] === d) last[0] += c; else acc.stts.push([c, d]);
+        }
+        if (anyCtts) { if (t.ctts) t.ctts.forEach((e) => acc.ctts.push(e)); else acc.ctts.push([t.sampleCount, 0]); }
+        if (anyStss) {
+          if (t.stss) t.stss.forEach((n) => acc.stss.push(n + acc.samples));
+          else for (let n = 1; n <= t.sampleCount; n++) acc.stss.push(n + acc.samples);
+        }
+        for (const [fc, spc, sdi] of t.stsc) acc.stsc.push([fc + acc.chunks, spc, map[sdi - 1] || 1]);
+        t.sizes.forEach((s) => acc.sizes.push(s));
+        for (const o of t.offs) {
+          if (o < info.dataStart || o >= info.dataEnd) throw new Error('This file stores its data in a layout that can’t be joined this way.');
+          acc.offs.push(payloadBase + bases[fi] + (o - info.dataStart));
+        }
+        acc.samples += t.sampleCount;
+        acc.chunks += t.offs.length;
+        acc.dur += t.duration;
+      });
+
+      // Keep the first clip's edit list (start offset and end trim) so sound and picture stay in sync.
+      const dv = ref.dv, b = rt.boxes;
+      let mediaTime = 0, trim = 0;
+      const edtsB = kid(dv, b.trak, 'edts'), elst = edtsB && kid(dv, edtsB, 'elst');
+      if (elst && dv.getUint32(elst.body + 4) === 1) {
+        const v = dv.getUint8(elst.body);
+        const segDur = v ? Number(dv.getBigUint64(elst.body + 8)) : dv.getUint32(elst.body + 8);
+        const mt = v ? Number(dv.getBigInt64(elst.body + 16)) : dv.getInt32(elst.body + 12);
+        if (mt > 0) mediaTime = mt;
+        trim = Math.max(0, ref.tracks[ti].duration - Math.round(segDur * rt.timescale / ref.mvTimescale));
+        if (trim * 1000 < rt.timescale) trim = 0;
+      }
+      const trackDur = Math.round((acc.dur - trim) * ref.mvTimescale / rt.timescale);
+      movieDur = Math.max(movieDur, trackDur);
+
+      const raw = (x) => new Uint8Array(ref.buf, x.start, x.size);
+      const tkhd = raw(b.tkhd).slice();
+      setDuration(tkhd, b.tkhd.body - b.tkhd.start, new DataView(tkhd.buffer).getUint8(b.tkhd.body - b.tkhd.start), true, trackDur);
+      const mdhd = raw(b.mdhd).slice();
+      setDuration(mdhd, b.mdhd.body - b.mdhd.start, new DataView(mdhd.buffer).getUint8(b.mdhd.body - b.mdhd.start), false, acc.dur);
+
+      let edts = [];
+      if (mediaTime > 0 || trim > 0) {
+        const e = new Uint8Array(20), ev = new DataView(e.buffer);
+        ev.setUint32(4, 1); ev.setUint32(8, trackDur); ev.setInt32(12, mediaTime); ev.setUint32(16, 0x00010000);
+        edts = box('edts', box('elst', e));
+      }
+
+      const stsd = box('stsd', (() => { const h = new Uint8Array(8); new DataView(h.buffer).setUint32(4, entries.length); return h; })(), ...entries);
+      const szb = new Uint8Array(12 + acc.sizes.length * 4), sv = new DataView(szb.buffer);
+      sv.setUint32(8, acc.sizes.length);
+      acc.sizes.forEach((s, i) => sv.setUint32(12 + i * 4, s));
+      const ob = new Uint8Array(8 + acc.offs.length * (big ? 8 : 4)), ov = new DataView(ob.buffer);
+      ov.setUint32(4, acc.offs.length);
+      acc.offs.forEach((o, i) => { if (big) ov.setBigUint64(8 + i * 8, BigInt(o)); else ov.setUint32(8 + i * 4, o); });
+      const cttsVer = infos.map((i) => i.tracks[ti].cttsVersion).find((v) => v != null) || 0;
+      const stbl = box('stbl',
+        stsd,
+        table('stts', 0, acc.stts, 2),
+        acc.ctts.length ? table('ctts', cttsVer, acc.ctts, 2) : [],
+        acc.stss.length ? table('stss', 0, acc.stss, 1) : [],
+        table('stsc', 0, acc.stsc, 3),
+        box('stsz', szb),
+        box(big ? 'co64' : 'stco', ob));
+      const minfKids = children(dv, b.minf.body, b.minf.end).filter((x) => x.type !== 'stbl').map(raw);
+      return box('trak', tkhd, edts, box('mdia', mdhd, raw(b.hdlr), box('minf', ...minfKids, stbl)));
+    });
+
+    const mvhd = new Uint8Array(ref.buf, ref.mvhd.start, ref.mvhd.size).slice();
+    setDuration(mvhd, ref.mvhd.body - ref.mvhd.start, new DataView(mvhd.buffer).getUint8(ref.mvhd.body - ref.mvhd.start), false, movieDur);
+    const moov = box('moov', mvhd, ...traks);
+
+    const hdr = new Uint8Array(bigMdat ? 16 : 8), hv = new DataView(hdr.buffer);
+    hdr.set(enc.encode('mdat'), 4);
+    if (bigMdat) { hv.setUint32(0, 1); hv.setBigUint64(8, BigInt(D + 16)); } else hv.setUint32(0, D + 8);
+    return new Blob([ref.ftyp, hdr, ...infos.map((i) => i.file.slice(i.dataStart, i.dataEnd)), moov], { type: 'video/mp4' });
+  }
+
+  /* ---------- merge ---------- */
+  function readOptions(valid) {
+    const first = valid[0];
+    const portrait = first.h > first.w;
+    const res = $('#res').value;
+    let W, H;
+    if (res === 'first') {
+      const k = Math.min(1, 1920 / Math.max(first.w, first.h));
+      W = first.w * k; H = first.h * k;
+    } else {
+      const short = +res, long = { 1080: 1920, 720: 1280, 480: 854 }[short];
+      W = portrait ? short : long; H = portrait ? long : short;
+    }
+    W = Math.max(2, Math.round(W / 2) * 2);
+    H = Math.max(2, Math.round(H / 2) * 2);
+    const fps = +$('#fps').value;
+    const fmt = formats.find((f) => f.id === formatSel.value) || formats[0];
+    const vbps = Math.min(20e6, Math.max(1e6, Math.round(W * H * fps * +$('#quality').value)));
+    return { W, H, fps, vbps, fit: $('#fit').value, audio: $('#audio').checked, mime: fmt.mime, ext: fmt.ext, label: fmt.label };
+  }
+
+  function setBusy(on, mode) {
+    $('#editor').inert = on;
+    $('#stage').hidden = !on;
+    $('#canvas').hidden = mode === 'copy';
+    $('#playhead').hidden = !on;
+    if (on) $('#stage').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    render();
+  }
+  function setProgress(elapsed, total) {
+    const pct = Math.min(100, Math.max(0, (elapsed / total) * 100));
+    $('#barFill').style.width = pct + '%';
+    $('#bar').setAttribute('aria-valuenow', Math.round(pct));
+    $('#playhead').style.left = pct + '%';
+    $('#time').textContent = `${fmtTime(elapsed)} / ${fmtTime(total)}`;
+  }
+  const setStatus = (t) => { $('#statusText').textContent = t; };
+  const setBar = (pct) => { $('#barFill').style.width = pct + '%'; $('#bar').setAttribute('aria-valuenow', Math.round(pct)); };
+
+  function clearResult() {
+    if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
+    state.resultUrl = null;
+    const v = $('#resultVideo');
+    v.onerror = null;
+    v.removeAttribute('src'); v.load();
+    $('#resultNote').hidden = true;
+    $('#result').hidden = true;
+  }
+
+  function showResult(blob, ext, meta) {
+    const url = URL.createObjectURL(blob);
+    state.resultUrl = url;
+    const v = $('#resultVideo');
+    v.onloadedmetadata = () => {
+      if (v.duration === Infinity) {
+        v.currentTime = 1e101;
+        v.ontimeupdate = () => { v.ontimeupdate = null; v.currentTime = 0; };
+      }
+    };
+    const rn = $('#resultNote');
+    rn.hidden = true;
+    v.onerror = () => {
+      rn.hidden = false;
+      rn.textContent = 'This browser can’t play the merged video (usually HEVC), but the file itself is fine. Open it in VLC or your usual video player.';
+    };
+    v.src = url;
+    const a = $('#download');
+    a.href = url;
+    a.download = `merged-${stamp()}.${ext}`;
+    $('#resultMeta').textContent = `${meta}${meta ? ' · ' : ''}${fmtSize(blob.size)} · ${ext.toUpperCase()}`;
+    $('#result').hidden = false;
+    $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function merge() {
+    const clips = validClips();
+    if (clips.length < 2 || state.merging) return;
+    if (clips.some((c) => c.noDecode)) {
+      notice('This browser can’t decode some of these clips, so they can’t be re-recorded. Choose “Join without re-encoding” instead.');
+      return;
+    }
+    const opts = readOptions(clips);
+    const total = clips.reduce((a, c) => a + c.duration, 0);
+
+    notice('');
+    clearResult();
+    state.merging = true;
+    state.cancel = false;
+    setBusy(true);
+    setProgress(0, total);
+
+    const canvas = $('#canvas');
+    canvas.width = opts.W; canvas.height = opts.H;
+    const g = canvas.getContext('2d', { alpha: false });
+    g.fillStyle = '#000'; g.fillRect(0, 0, opts.W, opts.H);
+
+    const drawFrame = (v) => {
+      const vw = v.videoWidth, vh = v.videoHeight;
+      if (!vw || !vh) return;
+      const s = opts.fit === 'cover' ? Math.max(opts.W / vw, opts.H / vh) : Math.min(opts.W / vw, opts.H / vh);
+      const dw = vw * s, dh = vh * s;
+      if (opts.fit !== 'cover') { g.fillStyle = '#000'; g.fillRect(0, 0, opts.W, opts.H); }
+      g.drawImage(v, (opts.W - dw) / 2, (opts.H - dh) / 2, dw, dh);
+    };
+
+    const stream = canvas.captureStream(opts.fps);
+    const chunks = [], videos = [];
+    let audioCtx = null, dest = null, recorder = null;
+
+    const ready = (v) => new Promise((res, rej) => {
+      if (v.readyState >= 3) return res();
+      const t = setTimeout(res, 8000);
+      v.addEventListener('canplay', () => { clearTimeout(t); res(); }, { once: true });
+      v.addEventListener('error', () => { clearTimeout(t); rej(new Error('A clip failed to load.')); }, { once: true });
+    });
+    const prepare = async (clip) => {
+      const v = document.createElement('video');
+      v.preload = 'auto'; v.playsInline = true;
+      if (audioCtx) audioCtx.createMediaElementSource(v).connect(dest); else v.muted = true;
+      v.src = clip.url;
+      v.load();
+      videos.push(v);
+      await ready(v);
+      return v;
+    };
+    const play = (v, offset, name) => new Promise((resolve, reject) => {
+      let raf = 0, finished = false;
+      const end = () => { if (finished) return; finished = true; cancelAnimationFrame(raf); resolve(); };
+      const tick = () => {
+        if (finished) return;
+        if (state.cancel) { v.pause(); return end(); }
+        drawFrame(v);
+        setProgress(offset + v.currentTime, total);
+        raf = requestAnimationFrame(tick);
+      };
+      v.addEventListener('ended', () => { drawFrame(v); end(); }, { once: true });
+      v.addEventListener('error', () => {
+        if (finished) return;
+        finished = true; cancelAnimationFrame(raf);
+        reject(new Error(`Couldn’t play ${name}.`));
+      }, { once: true });
+      v.play().then(() => { raf = requestAnimationFrame(tick); }).catch(reject);
+    });
+
+    try {
+      if (opts.audio) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.resume();
+        dest = audioCtx.createMediaStreamDestination();
+        dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+      }
+      const recOpts = { mimeType: opts.mime, videoBitsPerSecond: opts.vbps };
+      if (opts.audio) recOpts.audioBitsPerSecond = 128000;
+      recorder = new MediaRecorder(stream, recOpts);
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      const stopped = new Promise((r) => recorder.addEventListener('stop', r, { once: true }));
+      recorder.start(1000);
+      state.current = { recorder, video: null };
+
+      let offset = 0;
+      let next = prepare(clips[0]);
+      for (let i = 0; i < clips.length && !state.cancel; i++) {
+        const v = await next;
+        const after = clips[i + 1] ? prepare(clips[i + 1]) : null;
+        if (after) after.catch(() => {});
+        state.current.video = v;
+        setStatus(`Recording clip ${i + 1} of ${clips.length}`);
+        await play(v, offset, clips[i].name);
+        offset += clips[i].duration;
+        v.pause();
+        next = after;
+      }
+
+      setStatus('Finishing…');
+      if (recorder.state !== 'inactive') recorder.stop();
+      await stopped;
+      if (state.cancel) notice('Merge canceled.');
+      else showResult(new Blob(chunks, { type: opts.mime.split(';')[0] }), opts.ext, `${opts.W}×${opts.H} · ${opts.fps} fps`);
+    } catch (err) {
+      try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch (e) { /* already stopped */ }
+      notice(err && err.message ? err.message : 'Something went wrong while merging.');
+    } finally {
+      stream.getTracks().forEach((t) => t.stop());
+      if (audioCtx) audioCtx.close().catch(() => {});
+      videos.forEach((v) => { v.pause(); v.removeAttribute('src'); v.load(); });
+      state.merging = false;
+      state.current = null;
+      setBusy(false);
+    }
+  }
+
+  async function mergeCopy() {
+    const clips = validClips();
+    if (clips.length < 2 || state.merging) return;
+    const bad = clips.find((c) => !isMp4Family(c));
+    if (bad) {
+      notice(`${bad.name} isn’t an MP4 or MOV file, so it can’t be joined without re-encoding. Choose “Re-record” instead.`);
+      return;
+    }
+    notice('');
+    clearResult();
+    state.merging = true;
+    state.cancel = false;
+    setBusy(true, 'copy');
+    $('#time').textContent = '';
+    try {
+      const infos = [];
+      for (let i = 0; i < clips.length; i++) {
+        if (state.cancel) throw new Error('Merge canceled.');
+        setStatus(`Reading clip ${i + 1} of ${clips.length}`);
+        setBar((i / clips.length) * 100);
+        if (!clips[i].mp4) clips[i].mp4 = await readMp4(clips[i].file);
+        infos.push(clips[i].mp4);
+      }
+      setStatus('Joining…');
+      setBar(100);
+      const blob = buildJoined(infos);
+      showResult(blob, /\.mov$/i.test(clips[0].name) ? 'mov' : 'mp4', `${infos[0].width}×${infos[0].height}`);
+    } catch (err) {
+      notice(err && err.message ? err.message : 'Something went wrong while joining.');
+    } finally {
+      state.merging = false;
+      setBusy(false);
+    }
+  }
+
+  // Frames are drawn from requestAnimationFrame, which browsers pause in background tabs.
+  document.addEventListener('visibilitychange', () => {
+    const cur = state.current;
+    if (!state.merging || !cur) return;
+    if (document.hidden) {
+      if (cur.video) cur.video.pause();
+      if (cur.recorder.state === 'recording') cur.recorder.pause();
+      setStatus('Paused. Return to this tab to continue.');
+    } else {
+      if (cur.recorder.state === 'paused') cur.recorder.resume();
+      if (cur.video && !cur.video.ended) cur.video.play().catch(() => {});
+      setStatus('Recording…');
+    }
+  });
+
+  $('#merge').addEventListener('click', () => ($('#method').value === 'copy' ? mergeCopy() : merge()));
+  $('#method').addEventListener('change', () => { state.methodTouched = true; render(); });
+  $('#cancel').addEventListener('click', () => { state.cancel = true; setStatus('Canceling…'); });
+
+  render();
+})();
+</script>
+</body>
+</html>
