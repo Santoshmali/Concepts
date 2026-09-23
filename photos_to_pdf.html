@@ -22,7 +22,7 @@
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  body { padding-bottom: 100px; }
+  body { padding-bottom: 90px; }
 
   header {
     padding: 28px 20px 18px;
@@ -186,39 +186,40 @@
   .move-pair { display: flex; gap: 4px; }
 
   footer {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    background: linear-gradient(to top, var(--paper) 60%, rgba(250,248,244,0));
-    padding: 22px 16px 18px;
-  }
-  #convertBtn {
-    width: 100%;
-    padding: 16px;
-    border-radius: 12px;
-    border: none;
-    background: var(--accent);
-    color: white;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    box-shadow: 0 4px 16px rgba(47,93,80,0.28);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-  #convertBtn:disabled { background: #c9c3b6; box-shadow: none; }
-  #convertBtn:active:not(:disabled) { transform: scale(0.98); }
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, var(--paper) 60%, rgba(250,248,244,0));
+  padding: 16px 16px 14px;
+  display: flex;
+  justify-content: center;
+}
+#convertBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 3px 10px rgba(47,93,80,0.25);
+  cursor: pointer;
+}
+#convertBtn svg { width: 14px; height: 14px; }
+#convertBtn:disabled { background: #c9c3b6; box-shadow: none; }
+#convertBtn:active:not(:disabled) { transform: scale(0.98); }
 
-  .status {
-    text-align: center;
-    font-size: 12px;
-    color: #8a8478;
-    margin-top: 10px;
-    min-height: 16px;
-  }
-  .status.success { color: var(--accent); font-weight: 600; }
+.status {
+  text-align: center;
+  font-size: 12px;
+  color: #8a8478;
+  margin-top: 8px;
+  min-height: 16px;
+}
 </style>
 </head>
 <body>
@@ -256,11 +257,13 @@
 </main>
 
 <footer>
-  <button id="convertBtn" disabled>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-    <span id="convertLabel">Convert to PDF</span>
-  </button>
-  <div class="status" id="statusLine"></div>
+  <div>
+    <button id="convertBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      <span id="convertLabel">Convert to PDF</span>
+    </button>
+    <div class="status" id="statusLine"></div>
+  </div>
 </footer>
 
 <script>
