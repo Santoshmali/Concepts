@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Term Bubbles</title>
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--text:#1f2328;--muted:#6b7280;--line:#e4e2da;--accent:#2f6fed;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}}
+:root[data-theme="dark"]{--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:1.4rem;margin:0 0 4px}
+p.sub{margin:0 0 14px;color:var(--muted);font-size:.9rem}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}
+.tab{flex:0 0 auto;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tab.add{color:var(--accent);border-style:dashed}
+.pagebar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+#pname{flex:1;font-size:1.1rem;font-weight:600}
+form{display:flex;flex-wrap:wrap;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+input{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0}
+input:focus{outline:2px solid var(--accent)}
+#term{flex:2 1 160px}#weight{flex:1 1 90px}
+button{font:inherit;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+button.danger{color:#d64545;border-color:#d64545}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px}
+svg{display:block;width:100%;height:auto;max-height:65vh}
+.b{cursor:pointer;transition:opacity .15s}.b:hover{opacity:.85}
+.b text{fill:#fff;font-weight:600;text-anchor:middle;pointer-events:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px 4px 12px;font-size:.85rem}
+.chip b{color:var(--muted);font-weight:500}
+.chip button{padding:0;width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--text);font-size:.8rem;line-height:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Term Bubbles</h1>
+  <p class="sub">Each page is a topic; its important terms appear as bubbles sized by weight.</p>
+  <div class="tabs" id="tabs"></div>
+  <div class="pagebar">
+    <input id="pname" maxlength="60" aria-label="Page name" placeholder="Page name">
+    <button type="button" class="ghost danger" id="delpage">Delete page</button>
+  </div>
+  <form id="f">
+    <input id="term" placeholder="Term (e.g. Kubernetes)" maxlength="40" required>
+    <input id="weight" type="number" min="0.1" step="any" placeholder="Weight" required>
+    <button type="submit">Add bubble</button>
+  </form>
+  <div class="stage"><svg id="svg" viewBox="0 0 800 500" role="img" aria-label="Weighted term bubbles"></svg></div>
+  <p class="sub" id="info" style="margin:12px 0 0;min-height:1.3em"></p>
+  <div class="chips" id="chips"></div>
+</div>
+<script>
+const SAMPLE=[{t:"Azure",w:90},{t:"Cloud",w:70},{t:"DevOps",w:55},{t:"Security",w:45},{t:"Terraform",w:35},{t:"Networking",w:28},{t:"Monitoring",w:20},{t:"Cost",w:12}];
+const uid=()=>Math.random().toString(36).slice(2,9);
+let S=null;
+try{S=JSON.parse(localStorage.getItem("bubblePages")||"null")}catch(e){}
+if(!S||!Array.isArray(S.pages)||!S.pages.length){
+  let first=SAMPLE.slice();
+  try{const o=JSON.parse(localStorage.getItem("bubbleTerms")||"null");if(Array.isArray(o))first=o}catch(e){}
+  const id=uid();S={pages:[{id,name:"Page 1",items:first}],cur:id};
+}
+let sel=-1,delArm=null;
+const save=()=>{try{localStorage.setItem("bubblePages",JSON.stringify(S))}catch(e){}};
+const cur=()=>S.pages.find(p=>p.id===S.cur)||S.pages[0];
+const $=id=>document.getElementById(id);
+const svg=$("svg"),NS="http://www.w3.org/2000/svg";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const color=i=>`hsl(${(i*47+210)%360} 62% 45%)`;
+const fit=(s,r)=>{const n=Math.floor(r/3.2);return s.length>n&&n>3?s.slice(0,n-1)+"…":s};
+
+function layout(items){
+  const max=Math.max(...items.map(i=>i.w)),K=60/Math.sqrt(max);
+  const order=items.map((it,idx)=>({it,idx,r:Math.max(14,K*Math.sqrt(it.w))})).sort((a,b)=>b.r-a.r),placed=[];
+  for(const o of order){
+    for(let t=0;;t+=0.15){
+      const d=t*3,x=d*Math.cos(t),y=d*Math.sin(t)*0.75;
+      if(placed.every(p=>Math.hypot(p.x-x,p.y-y)>=p.r+o.r+4)){o.x=x;o.y=y;break}
+    }
+    placed.push(o);
+  }
+  return placed;
+}
+
+function renderTabs(){
+  const t=$("tabs");t.innerHTML="";
+  S.pages.forEach(p=>{
+    const b=document.createElement("button");b.type="button";b.className="tab"+(p.id===S.cur?" on":"");
+    b.textContent=p.name||"Untitled";b.onclick=()=>{S.cur=p.id;sel=-1;save();renderAll()};
+    t.appendChild(b);
+  });
+  const a=document.createElement("button");a.type="button";a.className="tab add";a.textContent="+ New page";
+  a.onclick=()=>{
+    const id=uid();S.pages.push({id,name:"Page "+(S.pages.length+1),items:[]});S.cur=id;sel=-1;save();renderAll();
+    $("pname").focus();$("pname").select();
+  };
+  t.appendChild(a);
+  $("delpage").disabled=S.pages.length<2;
+  $("delpage").style.opacity=S.pages.length<2?.4:1;
+}
+
+function renderBubbles(){
+  const items=cur().items;
+  svg.innerHTML="";$("chips").innerHTML="";
+  $("info").textContent=items[sel]?`Selected: ${items[sel].t} — weight ${items[sel].w}`:"";
+  if(!items.length){svg.setAttribute("viewBox","0 0 800 300");svg.innerHTML='<text x="400" y="150" text-anchor="middle" fill="currentColor" opacity=".5">No terms on this page yet — add one above</text>';return}
+  const P=layout(items);
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  P.forEach(p=>{x0=Math.min(x0,p.x-p.r);y0=Math.min(y0,p.y-p.r);x1=Math.max(x1,p.x+p.r);y1=Math.max(y1,p.y+p.r)});
+  const pad=12,w=x1-x0+pad*2,h=y1-y0+pad*2,W=Math.max(w,h);
+  svg.setAttribute("viewBox",`${x0-pad-(W-w)/2} ${y0-pad} ${W} ${h}`);
+  P.forEach(p=>{
+    const g=document.createElementNS(NS,"g");g.setAttribute("class","b");
+    g.innerHTML=`<title>${esc(p.it.t)} — weight ${p.it.w}</title>
+      <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${color(p.idx)}" stroke="${sel===p.idx?'currentColor':'none'}" stroke-width="3"/>
+      <text x="${p.x}" y="${p.y}" font-size="${Math.max(7,Math.min(p.r/3,18))}">
+        <tspan x="${p.x}" dy="-0.1em">${esc(fit(p.it.t,p.r))}</tspan>
+        <tspan x="${p.x}" dy="1.2em" font-weight="400" opacity=".85">${p.it.w}</tspan></text>`;
+    g.onclick=()=>{sel=sel===p.idx?-1:p.idx;renderBubbles()};
+    svg.appendChild(g);
+  });
+  items.forEach((it,i)=>{
+    const c=document.createElement("span");c.className="chip";c.innerHTML=`${esc(it.t)} <b>${it.w}</b>`;
+    const b=document.createElement("button");b.type="button";b.textContent="×";b.setAttribute("aria-label","Remove "+it.t);
+    b.onclick=()=>{items.splice(i,1);sel=-1;save();renderBubbles()};
+    c.appendChild(b);$("chips").appendChild(c);
+  });
+}
+function renderAll(){renderTabs();$("pname").value=cur().name;renderBubbles()}
+
+$("pname").oninput=e=>{cur().name=e.target.value;save();renderTabs()};
+$("f").onsubmit=e=>{
+  e.preventDefault();
+  const t=$("term").value.trim(),w=parseFloat($("weight").value);
+  if(!t||!(w>0))return;
+  cur().items.push({t,w});save();renderBubbles();
+  e.target.reset();$("term").focus();
+};
+$("delpage").onclick=e=>{
+  if(S.pages.length<2)return;
+  const btn=e.target;
+  if(delArm){
+    clearTimeout(delArm);delArm=null;btn.textContent="Delete page";
+    const i=S.pages.findIndex(p=>p.id===S.cur);S.pages.splice(i,1);S.cur=S.pages[Math.max(0,i-1)].id;sel=-1;save();renderAll();
+  }else{
+    btn.textContent="Click again to confirm";
+    delArm=setTimeout(()=>{delArm=null;btn.textContent="Delete page"},3000);
+  }
+};
+renderAll();
+</script>
+</body>
+</html>
