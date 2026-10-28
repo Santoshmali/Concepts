@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Term Bubbles</title>
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--text:#1f2328;--muted:#6b7280;--line:#e4e2da;--accent:#2f6fed;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}}
+:root[data-theme="dark"]{--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{display:flex;height:100%}
+aside{width:230px;flex:0 0 230px;border-right:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;padding:16px 12px;gap:10px;min-height:0}
+aside h1{font-size:1.1rem;margin:0 4px 2px}
+.tabs{display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;min-height:0}
+.tab{text-align:left;background:transparent;color:var(--text);border:0;border-radius:8px;padding:9px 12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
+.tab:hover{background:var(--bg)}
+.tab.on{background:var(--accent);color:#fff}
+.tab small{opacity:.7;font-weight:400;margin-left:6px}
+.tab.add{color:var(--accent);border:1px dashed var(--line);text-align:center}
+main{flex:1;min-width:0;display:flex;flex-direction:column;padding:16px;gap:10px;min-height:0}
+.pagebar{display:flex;gap:8px;align-items:center}
+#pname{flex:1;font-size:1.15rem;font-weight:600}
+form{display:flex;flex-wrap:wrap;gap:8px}
+input{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0}
+input:focus{outline:2px solid var(--accent)}
+#term{flex:2 1 160px}#weight{flex:1 1 90px}#link{flex:2 1 160px}#desc{flex:3 1 240px}
+button{font:inherit;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+button.danger{color:#d64545;border-color:#d64545}
+.stage{position:relative;flex:1;min-height:260px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.b{cursor:pointer;transition:opacity .15s}.b:hover{opacity:.85}
+.b text{fill:#fff;font-weight:600;text-anchor:middle;pointer-events:none}
+.status{color:var(--muted);font-size:.9rem;min-height:1.3em}
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:84px;overflow-y:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px 4px 12px;font-size:.85rem}
+.chip b{color:var(--muted);font-weight:500}
+.chip button{padding:0;width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--text);font-size:.8rem;line-height:1}
+@media (max-width:700px){
+  aside{width:120px;flex:0 0 120px;padding:10px 6px}
+  aside h1{font-size:.9rem}
+  .tab{padding:8px;font-size:.85rem}
+  .tab small{display:none}
+  main{padding:10px}
+}
+.side-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.side-foot button{padding:7px 10px;font-size:.85rem}
+.sync{font-size:.75rem;color:var(--muted);line-height:1.3}
+.io{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:.9rem}
+.io[hidden]{display:none}
+.io textarea{flex:1 1 100%;font:12px ui-monospace,Menlo,monospace;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+.io button{padding:6px 12px;font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Term Bubbles</h1>
+    <div class="tabs" id="tabs"></div>
+    <div class="side-foot">
+      <div class="sync" id="sync">Saving on this device…</div>
+      <button type="button" class="ghost" id="exp">Export JSON</button>
+      <button type="button" class="ghost" id="imp">Import JSON</button>
+      <button type="button" class="ghost" id="impPaste">Paste JSON</button>
+      <input type="file" id="impFile" accept=".json,application/json" hidden>
+    </div>
+  </aside>
+  <main>
+    <div class="pagebar">
+      <input id="pname" maxlength="60" aria-label="Page name" placeholder="Page name">
+      <button type="button" class="ghost danger" id="delpage">Delete page</button>
+    </div>
+    <div class="io" id="io" hidden></div>
+    <form id="f">
+      <input id="term" placeholder="Term (e.g. Kubernetes)" maxlength="40" required>
+      <input id="weight" type="number" min="0.1" step="any" placeholder="Weight" required>
+      <input id="link" type="text" inputmode="url" placeholder="Link (optional)" maxlength="500">
+      <input id="desc" type="text" placeholder="Description (optional)" maxlength="120">
+      <button type="submit">Add bubble</button>
+    </form>
+    <div class="stage" id="stage"><svg id="svg" role="img" aria-label="Weighted term bubbles"></svg></div>
+    <div class="status" id="info"></div>
+    <div class="chips" id="chips"></div>
+  </main>
+</div>
+<script>
+const SAMPLE=[{t:"Azure",w:90},{t:"Cloud",w:70},{t:"DevOps",w:55},{t:"Security",w:45},{t:"Terraform",w:35},{t:"Networking",w:28},{t:"Monitoring",w:20},{t:"Cost",w:12}];
+const uid=()=>Math.random().toString(36).slice(2,9);
+let S=null;
+try{S=JSON.parse(localStorage.getItem("bubblePages")||"null")}catch(e){}
+if(!S||!Array.isArray(S.pages)||!S.pages.length){
+  let first=SAMPLE.slice();
+  try{const o=JSON.parse(localStorage.getItem("bubbleTerms")||"null");if(Array.isArray(o))first=o}catch(e){}
+  const id=uid();S={pages:[{id,name:"Page 1",items:first}],cur:id};
+}
+let sel=-1,delArm=null;
+const save=()=>{try{localStorage.setItem("bubblePages",JSON.stringify(S))}catch(e){}pushDb()};
+const cur=()=>S.pages.find(p=>p.id===S.cur)||S.pages[0];
+const $=id=>document.getElementById(id);
+const svg=$("svg"),NS="http://www.w3.org/2000/svg";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const color=i=>`hsl(${(i*47+210)%360} 62% 45%)`;
+const fit=(s,r)=>{const n=Math.floor(r/3.2);return s.length>n&&n>3?s.slice(0,n-1)+"…":s};
+function labels(p){
+  const r=p.r,fs=Math.max(7,Math.min(r/3,22)),ds=Math.max(6,fs*0.62),d=(p.it.d||"").trim();
+  let lines=[];
+  if(d&&r>=30){
+    const per=Math.max(6,Math.floor(r*1.6/(ds*0.55))),max=Math.min(4,Math.max(1,Math.floor((r*0.8)/(ds*1.2))-1));
+    let ln="";
+    for(const wd of d.split(/\s+/)){
+      if((ln+" "+wd).trim().length<=per)ln=(ln+" "+wd).trim();
+      else{if(ln)lines.push(ln);ln=wd.length>per?wd.slice(0,per-1)+"…":wd}
+    }
+    if(ln)lines.push(ln);
+    if(lines.length>max){lines=lines.slice(0,max);const l=lines[max-1];lines[max-1]=l.slice(0,Math.max(1,per-1)).replace(/\s+$/,"")+"…"}
+  }
+  const dh=ds*1.25,H=fs*1.2+lines.length*dh,y=p.y-H/2+fs*0.9;
+  let out=`<text x="${p.x}" y="${y}" font-size="${fs}">${esc(fit(p.it.t,r))}</text>`;
+  lines.forEach((l,i)=>{out+=`<text x="${p.x}" y="${y+fs*0.3+(i+1)*dh}" font-size="${ds}" style="font-weight:400;opacity:.9">${esc(l)}</text>`});
+  return out;
+}
+
+function layout(items,ar){
+  const max=Math.max(...items.map(i=>i.w)),K=60/Math.sqrt(max);
+  const order=items.map((it,idx)=>({it,idx,r:Math.max(14,K*Math.sqrt(it.w))})).sort((a,b)=>b.r-a.r),placed=[];
+  for(const o of order){
+    for(let t=0;;t+=0.1){
+      const d=t*2.5,x=d*Math.cos(t),y=d*Math.sin(t)*ar;
+      if(placed.every(p=>Math.hypot(p.x-x,p.y-y)>=p.r+o.r+3)){o.x=x;o.y=y;break}
+    }
+    placed.push(o);
+  }
+  return placed;
+}
+
+function renderTabs(){
+  const t=$("tabs");t.innerHTML="";
+  S.pages.forEach(p=>{
+    const b=document.createElement("button");b.type="button";b.className="tab"+(p.id===S.cur?" on":"");
+    b.title=p.name||"Untitled";
+    b.innerHTML=`${esc(p.name||"Untitled")}<small>${p.items.length}</small>`;
+    b.onclick=()=>{S.cur=p.id;sel=-1;save();renderAll()};
+    t.appendChild(b);
+  });
+  const a=document.createElement("button");a.type="button";a.className="tab add";a.textContent="+ New page";
+  a.onclick=()=>{
+    const id=uid();S.pages.push({id,name:"Page "+(S.pages.length+1),items:[]});S.cur=id;sel=-1;save();renderAll();
+    $("pname").focus();$("pname").select();
+    t.scrollTop=t.scrollHeight;
+  };
+  t.appendChild(a);
+  $("delpage").disabled=S.pages.length<2;
+  $("delpage").style.opacity=S.pages.length<2?.4:1;
+}
+
+function renderBubbles(){
+  const items=cur().items,box=$("stage");
+  svg.innerHTML="";$("chips").innerHTML="";
+  $("info").textContent=items[sel]?`Selected: ${items[sel].t} — weight ${items[sel].w}${items[sel].d?" — "+items[sel].d:""}`:"Click a bubble for details; bubbles with a link open it in a new tab";
+  const cw=box.clientWidth||800,ch=box.clientHeight||500,ar=ch/cw;
+  if(!items.length){svg.setAttribute("viewBox",`0 0 ${cw} ${ch}`);svg.innerHTML=`<text x="${cw/2}" y="${ch/2}" text-anchor="middle" fill="currentColor" opacity=".5">No terms on this page yet — add one above</text>`;return}
+  const P=layout(items,ar);
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  P.forEach(p=>{x0=Math.min(x0,p.x-p.r);y0=Math.min(y0,p.y-p.r);x1=Math.max(x1,p.x+p.r);y1=Math.max(y1,p.y+p.r)});
+  const pad=10;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
+  let w=x1-x0,h=y1-y0;
+  if(h/w<ar){const nh=w*ar;y0-=(nh-h)/2;h=nh}else{const nw=h/ar;x0-=(nw-w)/2;w=nw}
+  svg.setAttribute("viewBox",`${x0} ${y0} ${w} ${h}`);
+  svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  P.forEach(p=>{
+    const g=document.createElementNS(NS,"g");g.setAttribute("class","b");
+    const L=p.it.l;
+    g.innerHTML=(L?`<a href="${esc(L)}" target="_blank" rel="noopener noreferrer">`:"")+`<title>${esc(p.it.t)} (weight ${p.it.w})${p.it.d?" — "+esc(p.it.d):""}${L?" — click to open link":""}</title>
+      <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${color(p.idx)}" stroke="${sel===p.idx?'currentColor':'none'}" stroke-width="3"/>
+      ${labels(p)}`+(L?"</a>":"");
+    if(!L)g.onclick=()=>{sel=sel===p.idx?-1:p.idx;renderBubbles()};
+    svg.appendChild(g);
+  });
+  items.forEach((it,i)=>{
+    const c=document.createElement("span");c.className="chip";c.title=it.d||"";c.innerHTML=`${esc(it.t)} <b>${it.w}</b>`+(it.l?` <a href="${esc(it.l)}" target="_blank" rel="noopener noreferrer" title="Open link" style="text-decoration:none">🔗</a>`:"");
+    const b=document.createElement("button");b.type="button";b.textContent="×";b.setAttribute("aria-label","Remove "+it.t);
+    b.onclick=()=>{items.splice(i,1);sel=-1;save();renderTabs();renderBubbles()};
+    c.appendChild(b);$("chips").appendChild(c);
+  });
+}
+function renderAll(){renderTabs();$("pname").value=cur().name;renderBubbles()}
+
+$("pname").oninput=e=>{cur().name=e.target.value;save();renderTabs()};
+$("f").onsubmit=e=>{
+  e.preventDefault();
+  const t=$("term").value.trim(),w=parseFloat($("weight").value);
+  if(!t||!(w>0))return;
+  let l=$("link").value.trim();
+  if(l){
+    if(!/^[a-z][a-z0-9+.-]*:/i.test(l))l="https://"+l;
+    try{const u=new URL(l);if(u.protocol!=="http:"&&u.protocol!=="https:")throw 0;l=u.href}catch(x){$("info").textContent="Please enter a valid http(s) link.";return}
+  }
+  const d=$("desc").value.trim(),item={t,w};
+  if(d)item.d=d;
+  if(l)item.l=l;
+  cur().items.push(item);save();renderTabs();renderBubbles();
+  e.target.reset();$("term").focus();
+};
+$("delpage").onclick=e=>{
+  if(S.pages.length<2)return;
+  const btn=e.target;
+  if(delArm){
+    clearTimeout(delArm);delArm=null;btn.textContent="Delete page";
+    const i=S.pages.findIndex(p=>p.id===S.cur);S.pages.splice(i,1);S.cur=S.pages[Math.max(0,i-1)].id;sel=-1;save();renderAll();
+  }else{
+    btn.textContent="Click again to confirm";
+    delArm=setTimeout(()=>{delArm=null;btn.textContent="Delete page"},3000);
+  }
+};
+let rt=null,lastW=0,lastH=0;
+new ResizeObserver(()=>{
+  const b=$("stage");if(b.clientWidth===lastW&&b.clientHeight===lastH)return;
+  lastW=b.clientWidth;lastH=b.clientHeight;clearTimeout(rt);rt=setTimeout(renderBubbles,60);
+}).observe($("stage"));
+renderAll();
+
+/* ---------- account storage (survives cleared cache) + local fallback ---------- */
+let dbDoc=null,saveT=null;
+const setStatus=t=>{$("sync").textContent=t};
+function pushDb(){
+  if(!dbDoc)return;
+  clearTimeout(saveT);
+  saveT=setTimeout(async()=>{
+    try{await dbDoc.set({json:JSON.stringify(S),v:1});setStatus("Saved to your account")}
+    catch(e){setStatus("Couldn’t reach account storage; saved on this device only")}
+  },500);
+}
+function clean(o){
+  if(!o||!Array.isArray(o.pages))return null;
+  const seen=new Set();
+  const pages=o.pages.slice(0,200).map(p=>{
+    if(!p||typeof p!=="object")return null;
+    const items=(Array.isArray(p.items)?p.items:[]).slice(0,500).map(it=>{
+      if(!it||typeof it.t!=="string")return null;
+      const w=Number(it.w);if(!(w>0)||!isFinite(w))return null;
+      const r={t:it.t.trim().slice(0,40),w};if(!r.t)return null;
+      if(typeof it.d==="string"&&it.d.trim())r.d=it.d.trim().slice(0,120);
+      if(typeof it.l==="string"){try{const u=new URL(it.l);if(u.protocol==="http:"||u.protocol==="https:")r.l=u.href}catch(x){}}
+      return r;
+    }).filter(Boolean);
+    let id=typeof p.id==="string"&&/^[\w-]{1,20}$/.test(p.id)&&!seen.has(p.id)?p.id:uid();
+    seen.add(id);
+    return {id,name:String(p.name||"Untitled").slice(0,60),items};
+  }).filter(Boolean);
+  if(!pages.length)return null;
+  return {pages,cur:pages.some(p=>p.id===o.cur)?o.cur:pages[0].id};
+}
+(async()=>{
+  try{
+    if(!window.claude||!claude.use)throw 0;
+    const [db,user]=await Promise.all([claude.use("db"),claude.use("user")]);
+    const me=user?await user.id():null;
+    if(!db||!me){setStatus("Saved on this device only (open while signed in to keep it in your account)");return}
+    dbDoc=db.collection("data/users/"+me).doc("bubbles");
+    const snap=await dbDoc.get(),d=snap.exists&&snap.data()&&snap.data().json;
+    if(d){
+      const c=clean(JSON.parse(d));
+      if(c){S=c;sel=-1;try{localStorage.setItem("bubblePages",JSON.stringify(S))}catch(e){}renderAll()}
+    }else{await dbDoc.set({json:JSON.stringify(S),v:1})}
+    setStatus("Saved to your account");
+  }catch(e){dbDoc=null;setStatus("Saved on this device only")}
+})();
+
+/* ---------- import / export ---------- */
+const io=$("io");
+function ioReset(msg){io.hidden=false;io.innerHTML="";if(msg){const s=document.createElement("span");s.textContent=msg;io.appendChild(s)}}
+function ioBtn(label,fn,ghost){const b=document.createElement("button");b.type="button";b.textContent=label;if(ghost)b.className="ghost";b.onclick=fn;io.appendChild(b);return b}
+const ioClose=()=>{io.hidden=true;io.innerHTML=""};
+function note(msg){ioReset(msg);ioBtn("Dismiss",ioClose,true)}
+async function doExport(){
+  const json=JSON.stringify({app:"term-bubbles",version:1,exportedAt:new Date().toISOString(),pages:S.pages.map(p=>({name:p.name,items:p.items}))},null,2);
+  try{
+    const dl=window.claude&&await claude.use("downloads");
+    if(!dl)throw 0;
+    await dl.save({filename:"term-bubbles.json",data:json});
+    note("Exported term-bubbles.json");
+  }catch(e){
+    if(e&&e.code==="declined"){note("Export cancelled");return}
+    ioReset("Copy this JSON and keep it in a .json file:");
+    const ta=document.createElement("textarea");ta.rows=6;ta.readOnly=true;ta.value=json;io.appendChild(ta);
+    ioBtn("Select all",()=>{ta.focus();ta.select()});ioBtn("Dismiss",ioClose,true);
+  }
+}
+function askImport(d){
+  const n=d.pages.length,t=d.pages.reduce((a,p)=>a+p.items.length,0);
+  const done=()=>{sel=-1;save();renderAll();note("Import complete")};
+  ioReset(`Import ${n} page${n>1?"s":""} (${t} terms)?`);
+  ioBtn("Add to my pages",()=>{d.pages.forEach(p=>{p.id=uid();S.pages.push(p)});S.cur=d.pages[0].id;done()});
+  ioBtn("Replace everything",()=>{S=d;done()},true);
+  ioBtn("Cancel",ioClose,true);
+}
+$("exp").onclick=doExport;
+$("imp").onclick=()=>$("impFile").click();
+$("impFile").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{if(f.size>5e6)throw 0;const d=clean(JSON.parse(await f.text()));if(!d)throw 0;askImport(d)}
+  catch(x){note("That file isn’t a valid Term Bubbles JSON export.")}
+};
+$("impPaste").onclick=()=>{
+  ioReset("Paste exported JSON:");
+  const ta=document.createElement("textarea");ta.rows=6;io.appendChild(ta);
+  ioBtn("Continue",()=>{try{const d=clean(JSON.parse(ta.value));if(!d)throw 0;askImport(d)}catch(x){note("That isn’t valid Term Bubbles JSON.")}});
+  ioBtn("Cancel",ioClose,true);
+};
+</script>
+</body>
+</html>
