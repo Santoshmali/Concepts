@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Term Bubbles</title>
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--text:#1f2328;--muted:#6b7280;--line:#e4e2da;--accent:#2f6fed;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}}
+:root[data-theme="dark"]{--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{display:flex;height:100%}
+aside{width:230px;flex:0 0 230px;border-right:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;padding:16px 12px;gap:10px;min-height:0}
+aside h1{font-size:1.1rem;margin:0 4px 2px}
+.tabs{display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;min-height:0}
+.tab{text-align:left;background:transparent;color:var(--text);border:0;border-radius:8px;padding:9px 12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
+.tab:hover{background:var(--bg)}
+.tab.on{background:var(--accent);color:#fff}
+.tab small{opacity:.7;font-weight:400;margin-left:6px}
+.tab.add{color:var(--accent);border:1px dashed var(--line);text-align:center}
+main{flex:1;min-width:0;display:flex;flex-direction:column;padding:16px;gap:10px;min-height:0}
+.pagebar{display:flex;gap:8px;align-items:center}
+#pname{flex:1;font-size:1.15rem;font-weight:600}
+form{display:flex;flex-wrap:wrap;gap:8px}
+input{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0}
+input:focus{outline:2px solid var(--accent)}
+#term{flex:2 1 160px}#weight{flex:1 1 90px}#link{flex:2 1 160px}
+button{font:inherit;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+button.danger{color:#d64545;border-color:#d64545}
+.stage{position:relative;flex:1;min-height:260px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.b{cursor:pointer;transition:opacity .15s}.b:hover{opacity:.85}
+.b text{fill:#fff;font-weight:600;text-anchor:middle;pointer-events:none}
+.status{color:var(--muted);font-size:.9rem;min-height:1.3em}
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:84px;overflow-y:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px 4px 12px;font-size:.85rem}
+.chip b{color:var(--muted);font-weight:500}
+.chip button{padding:0;width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--text);font-size:.8rem;line-height:1}
+@media (max-width:700px){
+  aside{width:120px;flex:0 0 120px;padding:10px 6px}
+  aside h1{font-size:.9rem}
+  .tab{padding:8px;font-size:.85rem}
+  .tab small{display:none}
+  main{padding:10px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Term Bubbles</h1>
+    <div class="tabs" id="tabs"></div>
+  </aside>
+  <main>
+    <div class="pagebar">
+      <input id="pname" maxlength="60" aria-label="Page name" placeholder="Page name">
+      <button type="button" class="ghost danger" id="delpage">Delete page</button>
+    </div>
+    <form id="f">
+      <input id="term" placeholder="Term (e.g. Kubernetes)" maxlength="40" required>
+      <input id="weight" type="number" min="0.1" step="any" placeholder="Weight" required>
+      <input id="link" type="text" inputmode="url" placeholder="Link (optional)" maxlength="500">
+      <button type="submit">Add bubble</button>
+    </form>
+    <div class="stage" id="stage"><svg id="svg" role="img" aria-label="Weighted term bubbles"></svg></div>
+    <div class="status" id="info"></div>
+    <div class="chips" id="chips"></div>
+  </main>
+</div>
+<script>
+const SAMPLE=[{t:"Azure",w:90},{t:"Cloud",w:70},{t:"DevOps",w:55},{t:"Security",w:45},{t:"Terraform",w:35},{t:"Networking",w:28},{t:"Monitoring",w:20},{t:"Cost",w:12}];
+const uid=()=>Math.random().toString(36).slice(2,9);
+let S=null;
+try{S=JSON.parse(localStorage.getItem("bubblePages")||"null")}catch(e){}
+if(!S||!Array.isArray(S.pages)||!S.pages.length){
+  let first=SAMPLE.slice();
+  try{const o=JSON.parse(localStorage.getItem("bubbleTerms")||"null");if(Array.isArray(o))first=o}catch(e){}
+  const id=uid();S={pages:[{id,name:"Page 1",items:first}],cur:id};
+}
+let sel=-1,delArm=null;
+const save=()=>{try{localStorage.setItem("bubblePages",JSON.stringify(S))}catch(e){}};
+const cur=()=>S.pages.find(p=>p.id===S.cur)||S.pages[0];
+const $=id=>document.getElementById(id);
+const svg=$("svg"),NS="http://www.w3.org/2000/svg";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const color=i=>`hsl(${(i*47+210)%360} 62% 45%)`;
+const fit=(s,r)=>{const n=Math.floor(r/3.2);return s.length>n&&n>3?s.slice(0,n-1)+"…":s};
+
+function layout(items,ar){
+  const max=Math.max(...items.map(i=>i.w)),K=60/Math.sqrt(max);
+  const order=items.map((it,idx)=>({it,idx,r:Math.max(14,K*Math.sqrt(it.w))})).sort((a,b)=>b.r-a.r),placed=[];
+  for(const o of order){
+    for(let t=0;;t+=0.1){
+      const d=t*2.5,x=d*Math.cos(t),y=d*Math.sin(t)*ar;
+      if(placed.every(p=>Math.hypot(p.x-x,p.y-y)>=p.r+o.r+3)){o.x=x;o.y=y;break}
+    }
+    placed.push(o);
+  }
+  return placed;
+}
+
+function renderTabs(){
+  const t=$("tabs");t.innerHTML="";
+  S.pages.forEach(p=>{
+    const b=document.createElement("button");b.type="button";b.className="tab"+(p.id===S.cur?" on":"");
+    b.title=p.name||"Untitled";
+    b.innerHTML=`${esc(p.name||"Untitled")}<small>${p.items.length}</small>`;
+    b.onclick=()=>{S.cur=p.id;sel=-1;save();renderAll()};
+    t.appendChild(b);
+  });
+  const a=document.createElement("button");a.type="button";a.className="tab add";a.textContent="+ New page";
+  a.onclick=()=>{
+    const id=uid();S.pages.push({id,name:"Page "+(S.pages.length+1),items:[]});S.cur=id;sel=-1;save();renderAll();
+    $("pname").focus();$("pname").select();
+    t.scrollTop=t.scrollHeight;
+  };
+  t.appendChild(a);
+  $("delpage").disabled=S.pages.length<2;
+  $("delpage").style.opacity=S.pages.length<2?.4:1;
+}
+
+function renderBubbles(){
+  const items=cur().items,box=$("stage");
+  svg.innerHTML="";$("chips").innerHTML="";
+  $("info").textContent=items[sel]?`Selected: ${items[sel].t} — weight ${items[sel].w}`:"Click a bubble for details; bubbles with a link open it in a new tab";
+  const cw=box.clientWidth||800,ch=box.clientHeight||500,ar=ch/cw;
+  if(!items.length){svg.setAttribute("viewBox",`0 0 ${cw} ${ch}`);svg.innerHTML=`<text x="${cw/2}" y="${ch/2}" text-anchor="middle" fill="currentColor" opacity=".5">No terms on this page yet — add one above</text>`;return}
+  const P=layout(items,ar);
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  P.forEach(p=>{x0=Math.min(x0,p.x-p.r);y0=Math.min(y0,p.y-p.r);x1=Math.max(x1,p.x+p.r);y1=Math.max(y1,p.y+p.r)});
+  const pad=10;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
+  let w=x1-x0,h=y1-y0;
+  if(h/w<ar){const nh=w*ar;y0-=(nh-h)/2;h=nh}else{const nw=h/ar;x0-=(nw-w)/2;w=nw}
+  svg.setAttribute("viewBox",`${x0} ${y0} ${w} ${h}`);
+  svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  P.forEach(p=>{
+    const g=document.createElementNS(NS,"g");g.setAttribute("class","b");
+    const L=p.it.l;
+    g.innerHTML=(L?`<a href="${esc(L)}" target="_blank" rel="noopener noreferrer">`:"")+`<title>${esc(p.it.t)} — weight ${p.it.w}${L?" — click to open link":""}</title>
+      <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${color(p.idx)}" stroke="${sel===p.idx?'currentColor':'none'}" stroke-width="3"/>
+      <text x="${p.x}" y="${p.y}" font-size="${Math.max(7,Math.min(p.r/3,22))}">
+        <tspan x="${p.x}" dy="-0.1em">${esc(fit(p.it.t,p.r))}</tspan>
+        <tspan x="${p.x}" dy="1.2em" font-weight="400" opacity=".85">${p.it.w}</tspan></text>`+(L?"</a>":"");
+    if(!L)g.onclick=()=>{sel=sel===p.idx?-1:p.idx;renderBubbles()};
+    svg.appendChild(g);
+  });
+  items.forEach((it,i)=>{
+    const c=document.createElement("span");c.className="chip";c.innerHTML=`${esc(it.t)} <b>${it.w}</b>`+(it.l?` <a href="${esc(it.l)}" target="_blank" rel="noopener noreferrer" title="Open link" style="text-decoration:none">🔗</a>`:"");
+    const b=document.createElement("button");b.type="button";b.textContent="×";b.setAttribute("aria-label","Remove "+it.t);
+    b.onclick=()=>{items.splice(i,1);sel=-1;save();renderTabs();renderBubbles()};
+    c.appendChild(b);$("chips").appendChild(c);
+  });
+}
+function renderAll(){renderTabs();$("pname").value=cur().name;renderBubbles()}
+
+$("pname").oninput=e=>{cur().name=e.target.value;save();renderTabs()};
+$("f").onsubmit=e=>{
+  e.preventDefault();
+  const t=$("term").value.trim(),w=parseFloat($("weight").value);
+  if(!t||!(w>0))return;
+  let l=$("link").value.trim();
+  if(l){
+    if(!/^[a-z][a-z0-9+.-]*:/i.test(l))l="https://"+l;
+    try{const u=new URL(l);if(u.protocol!=="http:"&&u.protocol!=="https:")throw 0;l=u.href}catch(x){$("info").textContent="Please enter a valid http(s) link.";return}
+  }
+  cur().items.push(l?{t,w,l}:{t,w});save();renderTabs();renderBubbles();
+  e.target.reset();$("term").focus();
+};
+$("delpage").onclick=e=>{
+  if(S.pages.length<2)return;
+  const btn=e.target;
+  if(delArm){
+    clearTimeout(delArm);delArm=null;btn.textContent="Delete page";
+    const i=S.pages.findIndex(p=>p.id===S.cur);S.pages.splice(i,1);S.cur=S.pages[Math.max(0,i-1)].id;sel=-1;save();renderAll();
+  }else{
+    btn.textContent="Click again to confirm";
+    delArm=setTimeout(()=>{delArm=null;btn.textContent="Delete page"},3000);
+  }
+};
+let rt=null,lastW=0,lastH=0;
+new ResizeObserver(()=>{
+  const b=$("stage");if(b.clientWidth===lastW&&b.clientHeight===lastH)return;
+  lastW=b.clientWidth;lastH=b.clientHeight;clearTimeout(rt);rt=setTimeout(renderBubbles,60);
+}).observe($("stage"));
+renderAll();
+</script>
+</body>
+</html>
