@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Term Bubbles</title>
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--text:#1f2328;--muted:#6b7280;--line:#e4e2da;--accent:#2f6fed;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}}
+:root[data-theme="dark"]{--bg:#15171a;--card:#1e2126;--text:#e8e9eb;--muted:#9aa1ab;--line:#2d3138;--accent:#6c9bff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:1.4rem;margin:0 0 4px}
+p.sub{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+form{display:flex;flex-wrap:wrap;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+input{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0}
+input:focus{outline:2px solid var(--accent);outline-offset:0}
+#term{flex:2 1 160px}#weight{flex:1 1 90px}
+button{font:inherit;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px}
+svg{display:block;width:100%;height:auto;max-height:70vh}
+.b{cursor:pointer;transition:opacity .15s}
+.b:hover{opacity:.85}
+.b text{fill:#fff;font-weight:600;text-anchor:middle;pointer-events:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px 4px 12px;font-size:.85rem}
+.chip b{color:var(--muted);font-weight:500}
+.chip button{padding:0;width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--text);font-size:.8rem;line-height:1}
+.empty{text-align:center;color:var(--muted);padding:60px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Term Bubbles</h1>
+  <p class="sub">Add a term with a weight. Bubble area scales with weight; click a bubble or its chip’s × to remove it.</p>
+  <form id="f">
+    <input id="term" placeholder="Term (e.g. Kubernetes)" maxlength="40" required>
+    <input id="weight" type="number" min="1" max="1000" step="any" placeholder="Weight" required>
+    <button type="submit">Add bubble</button>
+    <button type="button" class="ghost" id="reset">Reset</button>
+  </form>
+  <div class="stage"><svg id="svg" viewBox="0 0 800 500" role="img" aria-label="Weighted term bubbles"></svg></div>
+  <div class="chips" id="chips"></div>
+</div>
+<script>
+const SAMPLE=[{t:"Azure",w:90},{t:"Cloud",w:70},{t:"DevOps",w:55},{t:"Security",w:45},{t:"Terraform",w:35},{t:"Networking",w:28},{t:"Monitoring",w:20},{t:"Cost",w:12}];
+let items=[];
+try{const s=JSON.parse(localStorage.getItem("bubbleTerms")||"null");items=Array.isArray(s)?s:SAMPLE.slice()}catch(e){items=SAMPLE.slice()}
+const save=()=>{try{localStorage.setItem("bubbleTerms",JSON.stringify(items))}catch(e){}};
+const svg=document.getElementById("svg"),chips=document.getElementById("chips");
+const NS="http://www.w3.org/2000/svg";
+const color=i=>`hsl(${(i*47+210)%360} 62% 45%)`;
+
+function layout(){
+  const max=Math.max(...items.map(i=>i.w));
+  const K=60/Math.sqrt(max); // largest bubble radius = 60 units
+  const order=items.map((it,idx)=>({it,idx,r:Math.max(14,K*Math.sqrt(it.w))})).sort((a,b)=>b.r-a.r);
+  const placed=[];
+  for(const o of order){
+    let t=0;
+    for(;;t+=0.15){
+      const d=t*3, x=d*Math.cos(t), y=d*Math.sin(t)*0.75;
+      if(placed.every(p=>Math.hypot(p.x-x,p.y-y)>=p.r+o.r+4)){o.x=x;o.y=y;break}
+    }
+    placed.push(o);
+  }
+  return placed;
+}
+
+function render(){
+  svg.innerHTML="";chips.innerHTML="";
+  if(!items.length){svg.setAttribute("viewBox","0 0 800 300");svg.innerHTML='<text x="400" y="150" text-anchor="middle" fill="currentColor" opacity=".5">No terms yet — add one above</text>';return}
+  const P=layout();
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  P.forEach(p=>{x0=Math.min(x0,p.x-p.r);y0=Math.min(y0,p.y-p.r);x1=Math.max(x1,p.x+p.r);y1=Math.max(y1,p.y+p.r)});
+  const pad=12,w=x1-x0+pad*2,h=y1-y0+pad*2;
+  svg.setAttribute("viewBox",`${x0-pad} ${y0-pad} ${Math.max(w,h*0.8)} ${h}`);
+  P.forEach(p=>{
+    const g=document.createElementNS(NS,"g");g.setAttribute("class","b");
+    g.innerHTML=`<title>${esc(p.it.t)} — weight ${p.it.w}</title>
+      <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${color(p.idx)}"/>
+      <text x="${p.x}" y="${p.y}" font-size="${Math.max(7,Math.min(p.r/3,18))}">
+        <tspan x="${p.x}" dy="-0.1em">${esc(fit(p.it.t,p.r))}</tspan>
+        <tspan x="${p.x}" dy="1.2em" font-weight="400" opacity=".85">${p.it.w}</tspan></text>`;
+    g.onclick=()=>{items.splice(p.idx,1);save();render()};
+    svg.appendChild(g);
+  });
+  items.forEach((it,i)=>{
+    const c=document.createElement("span");c.className="chip";
+    c.innerHTML=`${esc(it.t)} <b>${it.w}</b>`;
+    const b=document.createElement("button");b.type="button";b.textContent="×";b.setAttribute("aria-label","Remove "+it.t);
+    b.onclick=()=>{items.splice(i,1);save();render()};
+    c.appendChild(b);chips.appendChild(c);
+  });
+}
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fit=(s,r)=>{const n=Math.floor(r/3.2);return s.length>n&&n>3?s.slice(0,n-1)+"…":s};
+
+document.getElementById("f").onsubmit=e=>{
+  e.preventDefault();
+  const t=document.getElementById("term").value.trim(),w=parseFloat(document.getElementById("weight").value);
+  if(!t||!(w>0))return;
+  items.push({t,w});save();render();
+  e.target.reset();document.getElementById("term").focus();
+};
+document.getElementById("reset").onclick=()=>{items=SAMPLE.slice();save();render()};
+render();
+</script>
+</body>
+</html>
